@@ -75,3 +75,48 @@ export const HEALTH_COLORS = {
 
 // Cores do palette de projetos
 export const PROJECT_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4'];
+
+/**
+ * Sanitiza strings para prevenir XSS
+ * Remove tags HTML e caracteres especiais perigosos
+ */
+export function sanitize(str) {
+  if (!str) return '';
+  if (typeof str !== 'string') return String(str);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/`/g, '&#x60;')
+    .replace(/on\w+=/gi, '');
+}
+
+/**
+ * Sanitiza string para uso em titles e tooltips (permite mais caracteres)
+ */
+export function sanitizeTitle(str) {
+  if (!str) return '';
+  if (typeof str !== 'string') return String(str);
+  // Para titles/tooltips, removemos apenas aspas para evitar quebrar o atributo
+  return str.replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+/**
+ * Sanitiza para uso em URLs
+ */
+export function sanitizeUrl(url) {
+  if (!url) return '';
+  // Permitir apenas URLs seguras
+  const allowedProtocols = ['https:', 'mailto:'];
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (!allowedProtocols.includes(parsed.protocol)) {
+      return '';
+    }
+    return parsed.href;
+  } catch {
+    return '';
+  }
+}
