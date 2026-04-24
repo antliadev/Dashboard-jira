@@ -39,6 +39,87 @@ const DEFAULT_STATUS_ORDER = [
   'CANCELADO'
 ];
 
+/**
+ * Normaliza um status para comparação (remove acentos, maiúsculas, espaços extras)
+ */
+function normalizeStatus(status) {
+  if (!status) return '';
+  return status
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/\s+/g, ' ')              // Normaliza espaços
+    .trim();
+}
+
+/**
+ * Encontra o índice de ordenação para um status
+ */
+function getStatusOrderIndex(statusName) {
+  const normalized = normalizeStatus(statusName);
+  
+  // Primeiro, tenta correspondência exata
+  const exactIndex = DEFAULT_STATUS_ORDER.findIndex(s => 
+    normalizeStatus(s) === normalized
+  );
+  if (exactIndex !== -1) return exactIndex;
+  
+  // Depois, tenta correspondência parcial (contém)
+  const partialIndex = DEFAULT_STATUS_ORDER.findIndex(s => {
+    const normalizedDefault = normalizeStatus(s);
+    return normalized.includes(normalizedDefault) || normalizedDefault.includes(normalized);
+  });
+  if (partialIndex !== -1) return partialIndex;
+  
+  // Mapeamento manual de variações comuns do Jira
+  const variations = {
+    'TODO': 0,
+    'TO DO': 0,
+    'A FAZER': 0,
+    'BACKLOG': 0,
+    'ABERTO': 0,
+    'OPEN': 0,
+    'IN PROGRESS': 1,
+    'EM ANDAMENTO': 1,
+    'INPROGRESS': 1,
+    'DEVELOPMENT': 1,
+    'DESENVOLVIMENTO': 1,
+    'PROGRESS': 1,
+    'ANDAMENTO': 1,
+    'DOING': 1,
+    'QA': 2,
+    'QUALITY': 2,
+    'TESTE': 2,
+    'TESTING': 2,
+    'READY FOR TEST': 2,
+    'READY4TEST': 2,
+    'PRONTO PARA TESTE': 2,
+    'VALIDATION': 3,
+    'VALIDAÇÃO': 3,
+    'VALIDAÇÃO CLIENTE': 3,
+    'CLIENT VALIDATION': 3,
+    'BLOQUEADO': 4,
+    'BLOCKED': 4,
+    'BLOQUEIO': 4,
+    'DONE': 5,
+    'CONCLUIDO': 5,
+    'CONCLUÍDO': 5,
+    'FINALIZADO': 5,
+    'COMPLETED': 5,
+    'CLOSED': 5,
+    'RESOLVED': 5,
+    'CANCELADO': 6,
+    'CANCELLED': 6,
+    'CANCELED': 6
+  };
+  
+  const variationIndex = variations[normalized];
+  if (variationIndex !== undefined) return variationIndex;
+  
+  // Se não encontrou, vai para o final em ordem alfabética
+  return 100 + normalized.length;
+}
+
 class JiraService {
   constructor() {
     this.cache = null;
@@ -471,19 +552,11 @@ class JiraService {
       metrics.byAnalyst[a.name] = a.totalTickets;
     });
 
-    // Board columns com ordenação preferencial
+    // Board columns com ordenação preferencial (usa normalizeStatus para correspondência precisa)
     const sortedStatuses = statuses.sort((a, b) => {
-      const aIndex = DEFAULT_STATUS_ORDER.findIndex(s => 
-        a.toUpperCase().includes(s) || s.includes(a.toUpperCase())
-      );
-      const bIndex = DEFAULT_STATUS_ORDER.findIndex(s => 
-        b.toUpperCase().includes(s) || s.includes(b.toUpperCase())
-      );
-      
-      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-      if (aIndex !== -1) return -1;
-      if (bIndex !== -1) return 1;
-      return a.localeCompare(b);
+      const aIndex = getStatusOrderIndex(a);
+      const bIndex = getStatusOrderIndex(b);
+      return aIndex - bIndex;
     });
 
     const board = {
