@@ -14,8 +14,8 @@ import {
 const isVercel = typeof window !== 'undefined' && window.location?.hostname?.includes('vercel.app');
 const isProduction = process.env.NODE_ENV === 'production' || isVercel;
 
-// Em produção local usa proxy, em produção Vercel usa caminho absoluto
-const API_BASE = isProduction && !isVercel ? '/api/jira' : '/api/jira';
+// API base - funciona tanto em dev quanto em produção Vercel
+const API_BASE = '/api/jira';
 
 class DataService {
   constructor() {
