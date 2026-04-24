@@ -7,11 +7,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { baseUrl, email, token, jql } = req.body;
+    let { baseUrl, email, token, jql } = req.body;
     
-    // Validar URLs
-    if (baseUrl && !baseUrl.startsWith('https://')) {
+    // Validar inputs - aceitar strings não vazias
+    if (baseUrl === undefined || baseUrl === null || baseUrl === '') {
+      return res.status(400).json({ success: false, error: 'URL é obrigatória' });
+    }
+    
+    if (!baseUrl.startsWith('https://')) {
       return res.status(400).json({ success: false, error: 'URL deve começar com https://' });
+    }
+    
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email é obrigatório' });
+    }
+    
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token é obrigatório' });
     }
     
     // Testar com as credenciais fornecidas diretamente
@@ -22,7 +34,7 @@ export default async function handler(req, res) {
         success: true,
         message: 'Conexão estabelecida com sucesso!',
         user: result.user,
-        totalTickets: result.testResult.total
+        totalTickets: result.testResult?.total || 0
       });
     } else {
       res.status(401).json({
