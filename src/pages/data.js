@@ -7,6 +7,7 @@ import { formatDateTime } from '../utils/helpers.js';
 let syncStatus = null;
 let config = null;
 let testResult = null;
+let canEdit = true; // default true
 
 export function renderData() {
   const header = document.getElementById('page-header');
@@ -48,7 +49,7 @@ function renderDataContent() {
   
   // Detectar modo de produção
   const isProduction = config?.isProduction || false;
-  const canEdit = config?.canEdit !== false; // default true
+  canEdit = config?.canEdit !== false; // default true
   const source = config?.source || 'none';
   
   // Mensagem de acordo com o source
