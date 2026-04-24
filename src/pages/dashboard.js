@@ -2,7 +2,7 @@
  * dashboard.js — Página principal de visão executiva
  */
 import { dataService } from '../data/data-service.js';
-import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS } from '../utils/helpers.js';
+import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize } from '../utils/helpers.js';
 import Chart from 'chart.js/auto';
 
 let dashboardChart = null;
@@ -20,7 +20,7 @@ export function renderDashboard() {
     <div class="page-actions">
       <select id="global-project-filter" class="btn btn-secondary">
         <option value="">Todos os Projetos</option>
-        ${dataService.getProjects().map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+        ${dataService.getProjects().map(p => `<option value="${sanitize(p.id)}">${sanitize(p.name)}</option>`).join('')}
       </select>
     </div>
   `;
@@ -99,8 +99,8 @@ function renderDashboardContent(projectId = null) {
                 return `
                   <tr>
                     <td>
-                      <div style="font-weight: 600;">${p.name}</div>
-                      <div style="font-size: 11px; color: var(--text-muted);">${p.key}</div>
+                      <div style="font-weight: 600;">${sanitize(p.name)}</div>
+                      <div style="font-size: 11px; color: var(--text-muted);">${sanitize(p.key)}</div>
                     </td>
                     <td>
                       <span class="badge badge-health-${pStats.health}">${healthLabel(pStats.health)}</span>
@@ -124,7 +124,7 @@ function renderDashboardContent(projectId = null) {
                       <span class="${pStats.overdue > 0 ? 'badge badge-overdue' : ''}">${pStats.overdue}</span>
                     </td>
                     <td>
-                      <button class="btn btn-secondary btn-sm" onclick="location.hash='#/projects/${p.id}'">Detalhes</button>
+                      <button class="btn btn-secondary btn-sm" onclick="location.hash='#/projects/${sanitize(p.id)}'">Detalhes</button>
                     </td>
                   </tr>
                 `;

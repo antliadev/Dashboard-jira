@@ -245,7 +245,7 @@ function renderDataContent() {
             <h4 style="font-size: 14px; margin-bottom: 12px;">Projetos</h4>
             <div style="display: flex; flex-wrap: wrap; gap: 8px;">
               ${rawData.projects.map(p => `
-                <span class="badge badge-type">${p.key} (${p.totalTickets})</span>
+                <span class="badge badge-type">${sanitize(p.key || '')} (${p.totalTickets})</span>
               `).join('')}
             </div>
           </div>
@@ -256,9 +256,9 @@ function renderDataContent() {
             <div style="display: flex; flex-wrap: wrap; gap: 12px;">
               ${rawData.analysts.map(a => `
                 <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-secondary); border-radius: var(--radius-sm);">
-                  ${a.avatar ? `<img src="${a.avatar}" class="avatar avatar-sm">` : `<div class="avatar avatar-sm" style="background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">${a.name.charAt(0)}</div>`}
+                  ${a.avatar ? `<img src="${sanitizeTitle(a.avatar)}" class="avatar avatar-sm" onerror="this.style.display='none'">` : `<div class="avatar avatar-sm" style="background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">${sanitize(a.name || '?').charAt(0)}</div>`}
                   <div>
-                    <div style="font-size: 13px; font-weight: 500;">${a.name}</div>
+                    <div style="font-size: 13px; font-weight: 500;">${sanitize(a.name || '')}</div>
                     <div style="font-size: 11px; color: var(--text-muted);">${a.totalTickets} tickets</div>
                   </div>
                 </div>

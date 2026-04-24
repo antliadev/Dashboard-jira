@@ -2,7 +2,7 @@
  * cards.js — Página de listagem de issues / cards
  */
 import { dataService } from '../data/data-service.js';
-import { formatDate, priorityLabel, typeLabel, debounce } from '../utils/helpers.js';
+import { formatDate, priorityLabel, typeLabel, debounce, sanitize, sanitizeTitle } from '../utils/helpers.js';
 import { resolveStatusCategory } from '../data/models.js';
 
 let currentFilters = {
@@ -37,14 +37,14 @@ function renderCardsContent() {
         <span class="filter-label">Projeto</span>
         <select id="filter-project">
           <option value="">Todos os Projetos</option>
-          ${projects.map(p => `<option value="${p.id}" ${currentFilters.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+          ${projects.map(p => `<option value="${sanitize(p.id)}" ${currentFilters.projectId === p.id ? 'selected' : ''}>${sanitize(p.name)}</option>`).join('')}
         </select>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px;">
         <span class="filter-label">Status</span>
         <select id="filter-status">
           <option value="">Todos os Status</option>
-          ${[...new Set(dataService.getCards().map(c => c.status))].sort().map(s => `<option value="${s}" ${currentFilters.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${[...new Set(dataService.getCards().map(c => c.status))].sort().map(s => `<option value="${sanitize(s)}" ${currentFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
         </select>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -91,25 +91,25 @@ function renderCardsContent() {
             const statusCat = resolveStatusCategory(c.status);
             return `
               <tr>
-                <td style="font-weight: 700; color: var(--accent);">${c.key}</td>
+                <td style="font-weight: 700; color: var(--accent);">${sanitize(c.key)}</td>
                 <td>
-                  <div style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${c.title}">${c.title}</div>
+                  <div style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${sanitizeTitle(c.title)}">${sanitize(c.title)}</div>
                   <div style="display: flex; gap: 4px; margin-top: 4px;">
                     <span class="badge badge-type">${typeLabel(c.type)}</span>
-                    ${(c.labels || []).slice(0, 2).map(l => `<span style="font-size: 10px; color: var(--text-muted);">#${l}</span>`).join('')}
+                    ${(c.labels || []).slice(0, 2).map(l => `<span style="font-size: 10px; color: var(--text-muted);">#${sanitize(l)}</span>`).join('')}
                   </div>
                 </td>
                 <td>
-                  <div style="font-weight: 500;">${project ? project.name : '—'}</div>
+                  <div style="font-weight: 500;">${sanitize(project ? project.name : '—')}</div>
                 </td>
                 <td>
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <img src="${user ? user.avatarUrl : ''}" class="avatar avatar-sm">
-                    <span>${user ? user.displayName : 'Não atribuído'}</span>
+                    <img src="${sanitizeTitle(user ? user.avatarUrl : '')}" class="avatar avatar-sm" onerror="this.style.display='none'" alt="${sanitizeTitle(user ? user.displayName : '')}">
+                    <span>${sanitize(user ? user.displayName : 'Não atribuído')}</span>
                   </div>
                 </td>
                 <td>
-                  <span class="badge badge-${statusCat}">${c.status}</span>
+                  <span class="badge badge-${statusCat}">${sanitize(c.status)}</span>
                 </td>
                 <td>
                   <span class="badge badge-priority-${c.priority}">${priorityLabel(c.priority)}</span>

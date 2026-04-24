@@ -2,6 +2,7 @@
  * analysts.js — Página de listagem de analistas / devs
  */
 import { dataService } from '../data/data-service.js';
+import { sanitize, sanitizeTitle } from '../utils/helpers.js';
 
 export function renderAnalysts() {
   const header = document.getElementById('page-header');
@@ -21,11 +22,11 @@ export function renderAnalysts() {
       ${users.map(u => {
         const stats = u.stats;
         return `
-          <div class="analyst-card" onclick="location.hash='#/analysts/${u.id}'">
-            <img src="${u.avatarUrl}" class="avatar avatar-lg">
+          <div class="analyst-card" onclick="location.hash='#/analysts/${sanitize(u.id)}'">
+            <img src="${sanitizeTitle(u.avatarUrl || '')}" class="avatar avatar-lg" onerror="this.style.display='none'" alt="${sanitizeTitle(u.displayName)}">
             <div class="analyst-info">
-              <h3 class="analyst-name">${u.displayName}</h3>
-              <div class="analyst-email">${u.email}</div>
+              <h3 class="analyst-name">${sanitize(u.displayName)}</h3>
+              <div class="analyst-email">${sanitize(u.email || '')}</div>
               
               <div style="margin-top: 12px;">
                 <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
@@ -57,7 +58,7 @@ export function renderAnalysts() {
                 <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                   ${stats.projects.map(pid => {
                     const p = dataService.getProjectById(pid);
-                    return p ? `<span class="badge" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">${p.key}</span>` : '';
+                    return p ? `<span class="badge" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">${sanitize(p.key)}</span>` : '';
                   }).join('')}
                 </div>
               </div>
