@@ -9,12 +9,13 @@ export default async function handler(req, res) {
   try {
     const { baseUrl, email, token, jql } = req.body;
     
-    // Configurar temporariamente para testar
-    if (baseUrl || email || token || jql) {
-      configService.setConfig({ baseUrl, email, token, jql });
+    // Validar URLs
+    if (baseUrl && !baseUrl.startsWith('https://')) {
+      return res.status(400).json({ success: false, error: 'URL deve começar com https://' });
     }
     
-    const result = await jiraService.testConnection();
+    // Testar com as credenciais fornecidas diretamente
+    const result = await jiraService.testConnectionWithConfig(baseUrl, email, token, jql);
     
     if (result.success) {
       res.json({
