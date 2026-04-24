@@ -82,7 +82,7 @@ class DataService {
     return null;
   }
 
-/**
+  /**
    * Salva configuração do Jira
    */
   async saveConfig(config) {
@@ -93,8 +93,11 @@ class DataService {
         body: JSON.stringify(config)
       });
       
+      // Validar content-type antes de parsear JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[DataService] SaveConfig response not JSON:', text.substring(0, 200));
         throw new Error('Resposta inválida do servidor');
       }
       
@@ -114,33 +117,6 @@ class DataService {
       this._config = result;
       this._notify();
       return result;
-    } catch (error) {
-      console.error('[DataService] Erro ao salvar configuração:', error.message);
-      throw error;
-    }
-  }
-      
-      const result = await response.json();
-      
-      // Se retornou 403 ou message de produção, não é erro crítico
-      if (response.status === 403 || result.message?.includes('produção')) {
-        // Apenas recarrega configuração
-        await this.loadConfig();
-        return result;
-      }
-      
-      if (!response.ok) {
-        throw new Error(result.error || result.message || 'Erro ao salvar configuração');
-      }
-      
-      this._config = result;
-      this._notify();
-      return result;
-    } catch (error) {
-      console.error('[DataService] Erro ao salvar configuração:', error.message);
-      throw error;
-    }
-  }
     } catch (error) {
       console.error('[DataService] Erro ao salvar configuração:', error.message);
       throw error;

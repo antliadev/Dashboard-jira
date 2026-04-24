@@ -308,8 +308,9 @@ function setupEventListeners() {
       } catch (error) {
         alert('Erro ao salvar: ' + error.message);
         renderDataContent();
-    }
-  });
+      }
+});
+  }
 
   // Sincronizar
   document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
