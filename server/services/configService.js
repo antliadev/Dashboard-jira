@@ -28,6 +28,14 @@ class ConfigService {
   }
 
   _loadConfig() {
+    // 1) Carrega variáveis de ambiente em produção ou desenvolvimento
+    const envBaseUrl = process.env.JIRA_BASE_URL;
+    const envEmail = process.env.JIRA_EMAIL;
+    const envToken = process.env.JIRA_API_TOKEN;
+    const envJql = process.env.JIRA_JQL;
+    const envCacheTtl = process.env.JIRA_CACHE_TTL;
+
+    // 2) Carrega configuração de arquivo (jira-config.json) se existente
     try {
       if (fs.existsSync(CONFIG_FILE)) {
         const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
@@ -38,6 +46,20 @@ class ConfigService {
     } catch (error) {
       console.error('[ConfigService] Erro ao carregar configuração:', error.message);
       this._config = { ...DEFAULT_CONFIG };
+    }
+
+    // 3) Aplicar variáveis de ambiente por cima (prioridade maior)
+    if (envBaseUrl) this._config.baseUrl = envBaseUrl.replace(/\/$/, '');
+    if (envEmail) this._config.email = envEmail;
+    if (envToken) this._config.token = envToken;
+    if (envJql) this._config.jql = envJql;
+    if (envCacheTtl) this._config.cacheTtlMinutes = parseInt(envCacheTtl, 10);
+
+    // 4) Determinar origem da configuração
+    this._config.source = envBaseUrl ? 'env' : (this._config.baseUrl ? 'file' : 'none');
+    // Garantir consistência caso o env já tenha vindo, mas token não esteja presente
+    if (this._config.source === 'env' && !this._config.baseUrl) {
+      this._config.source = 'none';
     }
   }
 
@@ -71,6 +93,7 @@ class ConfigService {
       cacheTtlMinutes: this._config.cacheTtlMinutes,
       hasToken: !!this._config.token,
       tokenMasked: this._config.token ? '********' + this._config.token.slice(-4) : null,
+      source: this._config.source,
       lastSync: this._config.lastSync,
       lastSyncStatus: this._config.lastSyncStatus,
       lastSyncError: this._config.lastSyncError,

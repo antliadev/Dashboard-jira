@@ -9,24 +9,19 @@ export default async function handler(req, res) {
   try {
     let { baseUrl, email, token, jql } = req.body || {};
     
-    // Sanitizar
-    baseUrl = baseUrl?.trim()?.replace(/\/$/, '') || '';
-    email = email?.trim() || '';
-    token = token?.trim() || '';
-    jql = jql?.trim();
-    
-    // Precisamos de credenciais
+    // Se não fornecer, buscar do Supabase
     if (!baseUrl || !email || !token) {
-      const cfg = configService.getConfig();
-      baseUrl = baseUrl || cfg.baseUrl;
-      email = email || cfg.fullEmail || cfg.email;
-      token = token || cfg.token;
+      const conn = await configService.getActiveConnection();
+      if (conn) {
+        baseUrl = conn.baseUrl;
+        email = conn.email;
+        token = conn.token;
+        jql = jql || conn.jql;
+      }
     }
     
     if (!baseUrl || !email || !token) {
-      return res.status(400).json({ 
-        error: 'Credenciais não fornecidas' 
-      });
+      return res.status(400).json({ error: 'Credenciais não configuradas. Configure na página Dados.' });
     }
     
     configService.updateSyncStatus('running');

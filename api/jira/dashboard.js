@@ -7,15 +7,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!configService.isConfigured()) {
+    // Buscar conexão do Supabase
+    const conn = await configService.getActiveConnection();
+    
+    if (!conn) {
       return res.status(400).json({ 
         error: 'Jira não configurado. Configure as credenciais na página Dados.' 
       });
     }
     
-    const data = await jiraService.fetchAllIssues();
-    res.json(data);
+    // Buscar dados do Jira
+    const data = await jiraService.fetchAllIssuesWithConfig(
+      conn.baseUrl,
+      conn.email,
+      conn.token,
+      conn.jql
+    );
+    
+    return res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 }
