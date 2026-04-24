@@ -1,5 +1,4 @@
 import { jiraService } from '../../lib/jiraService.js';
-import { configService } from '../../lib/configService.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -7,43 +6,46 @@ export default async function handler(req, res) {
   }
 
   try {
-    let { baseUrl, email, token, jql } = req.body;
+    let { baseUrl, email, token, jql } = req.body || {};
     
-    // Validar inputs - aceitar strings não vazias
-    if (baseUrl === undefined || baseUrl === null || baseUrl === '') {
+    // Sanitizar
+    baseUrl = baseUrl?.trim()?.replace(/\/$/, '') || '';
+    email = email?.trim() || '';
+    token = token?.trim() || '';
+    jql = jql?.trim();
+    
+    // Validar credenciais
+    if (!baseUrl) {
       return res.status(400).json({ success: false, error: 'URL é obrigatória' });
     }
-    
     if (!baseUrl.startsWith('https://')) {
       return res.status(400).json({ success: false, error: 'URL deve começar com https://' });
     }
-    
     if (!email) {
       return res.status(400).json({ success: false, error: 'Email é obrigatório' });
     }
-    
     if (!token) {
       return res.status(400).json({ success: false, error: 'Token é obrigatório' });
     }
     
-    // Testar com as credenciais fornecidas diretamente
+    // Testar conexão
     const result = await jiraService.testConnectionWithConfig(baseUrl, email, token, jql);
     
     if (result.success) {
-      res.json({
+      return res.status(200).json({
         success: true,
         message: 'Conexão estabelecida com sucesso!',
         user: result.user,
-        totalTickets: result.testResult?.total || 0
+        testResult: result.testResult
       });
     } else {
-      res.status(401).json({
+      return res.status(400).json({
         success: false,
         error: result.error
       });
     }
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       success: false,
       error: error.message
     });

@@ -10,14 +10,13 @@ export default async function handler(req, res) {
     let { baseUrl, email, token, jql } = req.body || {};
     
     // Sanitizar
-    baseUrl = baseUrl?.trim();
-    email = email?.trim();
-    token = token?.trim();
+    baseUrl = baseUrl?.trim()?.replace(/\/$/, '') || '';
+    email = email?.trim() || '';
+    token = token?.trim() || '';
     jql = jql?.trim();
     
     // Precisamos de credenciais
     if (!baseUrl || !email || !token) {
-      // Tenta do configService
       const cfg = configService.getConfig();
       baseUrl = baseUrl || cfg.baseUrl;
       email = email || cfg.fullEmail || cfg.email;
@@ -26,7 +25,7 @@ export default async function handler(req, res) {
     
     if (!baseUrl || !email || !token) {
       return res.status(400).json({ 
-        error: 'Credenciais não fornecidas. Preencha o formulário primeiro.' 
+        error: 'Credenciais não fornecidas' 
       });
     }
     
