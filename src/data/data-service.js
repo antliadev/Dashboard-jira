@@ -10,13 +10,6 @@ import {
   isCardOverdue, calculateProjectProgress, calculateProjectHealth,
 } from './models.js';
 
-// Detectar ambiente de produção
-const isVercel = typeof window !== 'undefined' && window.location?.hostname?.includes('vercel.app');
-const isProduction = process.env.NODE_ENV === 'production' || isVercel;
-
-// API base - funciona tanto em dev quanto em produção Vercel
-const API_BASE = '/api/jira';
-
 class DataService {
   constructor() {
     this._projects = [];
@@ -28,6 +21,7 @@ class DataService {
     this._rawJiraData = null;
     this._apiStatus = 'disconnected';
     this._config = null;
+    this._apiBase = '/api/jira';
   }
 
   subscribe(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
@@ -57,7 +51,7 @@ class DataService {
    */
   async loadConfig() {
     try {
-      const response = await fetch(`${API_BASE}/config`);
+      const response = await fetch(`${this._apiBase}/config`);
       
       // Validar content-type
       const contentType = response.headers.get('content-type');
@@ -93,7 +87,7 @@ class DataService {
    */
   async saveConfig(config) {
     try {
-      const response = await fetch(`${API_BASE}/config`, {
+      const response = await fetch(`${this._apiBase}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -158,7 +152,7 @@ class DataService {
    */
   async testConnection(config) {
     try {
-      const response = await fetch(`${API_BASE}/test-connection`, {
+      const response = await fetch(`${this._apiBase}/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -190,7 +184,7 @@ class DataService {
    */
   async syncFromJira() {
     try {
-      const response = await fetch(`${API_BASE}/sync`, {
+      const response = await fetch(`${this._apiBase}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -224,7 +218,7 @@ class DataService {
    */
   async getSyncStatus() {
     try {
-      const response = await fetch(`${API_BASE}/sync/status`);
+      const response = await fetch(`${this._apiBase}/sync/status`);
       if (response.ok) {
         return await response.json();
       }
@@ -239,7 +233,7 @@ class DataService {
    */
   async clearCache() {
     try {
-      const response = await fetch(`${API_BASE}/cache/clear`, {
+      const response = await fetch(`${this._apiBase}/cache/clear`, {
         method: 'POST'
       });
       return await response.json();
@@ -254,7 +248,7 @@ class DataService {
    */
   async loadJiraData() {
     try {
-      const response = await fetch(`${API_BASE}/dashboard`);
+      const response = await fetch(`${this._apiBase}/dashboard`);
       
       if (!response.ok) {
         const error = await response.json();
