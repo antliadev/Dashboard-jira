@@ -2,7 +2,7 @@
  * board.js — Página de Board Kanban por status
  */
 import { dataService } from '../data/data-service.js';
-import { formatDate, priorityLabel } from '../utils/helpers.js';
+import { formatDate, priorityLabel, sanitize, sanitizeTitle } from '../utils/helpers.js';
 
 let currentFilters = {
   projectId: '',
@@ -94,14 +94,14 @@ function renderBoardContent() {
         <span class="filter-label">Projeto</span>
         <select id="filter-board-project">
           <option value="">Todos os Projetos</option>
-          ${projects.map(p => `<option value="${p.key}" ${currentFilters.projectId === p.key ? 'selected' : ''}>${p.name}</option>`).join('')}
+          ${projects.map(p => `<option value="${sanitize(p.key)}" ${currentFilters.projectId === p.key ? 'selected' : ''}>${sanitize(p.name)}</option>`).join('')}
         </select>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px;">
         <span class="filter-label">Analista</span>
         <select id="filter-board-analyst">
           <option value="">Todos os Analistas</option>
-          ${users.map(u => `<option value="${u.id}" ${currentFilters.analystId === u.id ? 'selected' : ''}>${u.displayName}</option>`).join('')}
+          ${users.map(u => `<option value="${sanitize(u.id)}" ${currentFilters.analystId === u.id ? 'selected' : ''}>${sanitize(u.displayName)}</option>`).join('')}
         </select>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -130,27 +130,27 @@ function renderBoardContent() {
       ` : columns.map(col => `
         <div class="kanban-column">
           <div class="kanban-column-header">
-            <span class="kanban-column-title">${col.name}</span>
+            <span class="kanban-column-title">${sanitize(col.name)}</span>
             <span class="kanban-column-count">${col.total}</span>
           </div>
-          <div class="kanban-column-content" data-status="${col.name}">
+          <div class="kanban-column-content" data-status="${sanitizeTitle(col.name)}">
             ${col.issues.length === 0 ? `
               <div class="kanban-empty">Nenhum item</div>
             ` : col.issues.map(issue => `
-              <div class="kanban-card" draggable="true" data-id="${issue.id}">
+              <div class="kanban-card" draggable="true" data-id="${sanitize(issue.id)}">
                 <div class="kanban-card-header">
-                  <span class="kanban-card-key">${issue.key}</span>
-                  ${issue.priority ? `<span class="kanban-card-priority priority-${issue.priority.name.toLowerCase()}">${issue.priority.name}</span>` : ''}
+                  <span class="kanban-card-key">${sanitize(issue.key)}</span>
+                  ${issue.priority ? `<span class="kanban-card-priority priority-${sanitize(issue.priority.name.toLowerCase())}">${sanitize(issue.priority.name)}</span>` : ''}
                 </div>
-                <div class="kanban-card-title">${issue.title}</div>
+                <div class="kanban-card-title">${sanitize(issue.title)}</div>
                 <div class="kanban-card-footer">
                   <div class="kanban-card-project">
-                    ${issue.project.avatar ? `<img src="${issue.project.avatar}" class="project-avatar">` : ''}
-                    <span>${issue.project.key}</span>
+                    ${issue.project.avatar ? `<img src="${sanitizeTitle(issue.project.avatar)}" class="project-avatar" onerror="this.style.display='none'">` : ''}
+                    <span>${sanitize(issue.project.key)}</span>
                   </div>
                   ${issue.assignee ? `
                     <div class="kanban-card-assignee">
-                      <img src="${issue.assignee.avatar}" class="avatar avatar-xs" title="${issue.assignee.name}">
+                      <img src="${sanitizeTitle(issue.assignee.avatar)}" class="avatar avatar-xs" title="${sanitizeTitle(issue.assignee.name)}" onerror="this.style.display='none'">
                     </div>
                   ` : `
                     <div class="kanban-card-assignee unassigned" title="Não atribuído">

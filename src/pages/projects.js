@@ -2,7 +2,7 @@
  * projects.js — Página de listagem de projetos
  */
 import { dataService } from '../data/data-service.js';
-import { healthLabel } from '../utils/helpers.js';
+import { healthLabel, sanitize, sanitizeTitle } from '../utils/helpers.js';
 
 export function renderProjects() {
   const header = document.getElementById('page-header');
@@ -22,13 +22,13 @@ export function renderProjects() {
       ${projects.map(p => {
         const stats = dataService.getProjectStats(p.id);
         return `
-          <div class="project-card" onclick="location.hash='#/projects/${p.id}'">
+          <div class="project-card" onclick="location.hash='#/projects/${sanitize(p.id)}'">
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-              <span class="project-key">${p.key}</span>
+              <span class="project-key">${sanitize(p.key)}</span>
               <span class="badge badge-health-${stats.health}">${healthLabel(stats.health)}</span>
             </div>
-            <h3 class="project-name">${p.name}</h3>
-            <p class="project-desc">${p.description}</p>
+            <h3 class="project-name">${sanitize(p.name)}</h3>
+            <p class="project-desc">${sanitize(p.description || '')}</p>
             
             <div style="margin-bottom: 20px;">
               <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
@@ -59,7 +59,7 @@ export function renderProjects() {
               <div class="avatar-stack">
                 ${stats.team.slice(0, 4).map(uid => {
                   const u = dataService.getUserById(uid);
-                  return `<img src="${u.avatarUrl}" class="avatar avatar-sm" title="${u.displayName}">`;
+                  return u ? `<img src="${sanitizeTitle(u.avatarUrl || '')}" class="avatar avatar-sm" title="${sanitizeTitle(u.displayName)}" onerror="this.style.display='none'">` : '';
                 }).join('')}
                 ${stats.team.length > 4 ? `<div class="avatar avatar-sm" style="display: flex; align-items: center; justify-content: center; font-size: 10px; background: var(--bg-secondary); color: var(--text-muted);">+${stats.team.length - 4}</div>` : ''}
               </div>
