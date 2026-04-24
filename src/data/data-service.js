@@ -10,8 +10,12 @@ import {
   isCardOverdue, calculateProjectProgress, calculateProjectHealth,
 } from './models.js';
 
-// Usar proxy do Vite - não precisa de URL completa
-const API_BASE = '/api/jira';
+// Detectar ambiente de produção
+const isVercel = typeof window !== 'undefined' && window.location?.hostname?.includes('vercel.app');
+const isProduction = process.env.NODE_ENV === 'production' || isVercel;
+
+// Em produção local usa proxy, em produção Vercel usa caminho absoluto
+const API_BASE = isProduction && !isVercel ? '/api/jira' : '/api/jira';
 
 class DataService {
   constructor() {
@@ -101,6 +105,14 @@ class DataService {
         body: JSON.stringify(config)
       });
       
+      // Validar content-type antes de parsear JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[DataService] Resposta não é JSON:', text.substring(0, 200));
+        throw new Error(`Erro ao testar conexão: resposta inválida do servidor (${response.status})`);
+      }
+      
       const result = await response.json();
       
       if (!response.ok) {
@@ -123,6 +135,14 @@ class DataService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
+      
+      // Validar content-type antes deParsear JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[DataService] Resposta não é JSON:', text.substring(0, 200));
+        throw new Error(`Erro ao sincronizar: resposta inválida do servidor (${response.status})`);
+      }
       
       const result = await response.json();
       

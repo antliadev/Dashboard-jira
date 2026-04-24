@@ -17,7 +17,7 @@ app.use('/api/jira', jiraRoutes);
 app.get('/api/jira', (req, res) => {
   res.json({
     status: 'ok',
-    message: 'Jira Dashboard API',
+    message: 'Jira Dashboard API (Desenvolvimento)',
     endpoints: [
       'GET  /api/jira                 - Esta lista de endpoints',
       'GET  /api/jira/config          - Retorna configuração atual',
@@ -34,7 +34,8 @@ app.get('/api/jira', (req, res) => {
       'GET  /api/jira/board           - Board Kanban',
       'POST /api/jira/cache/clear     - Limpa cache',
       'GET  /api/jira/cache/stats     - Status do cache'
-    ]
+    ],
+    production: 'Use Vercel para deploy em produção com rotas em /api/jira/*'
   });
 });
 
@@ -56,7 +57,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erro interno do servidor' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-  console.log(`API Jira disponível em http://localhost:${PORT}/api/jira`);
-});
+// Apenas iniciar servidor em desenvolvimento
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+    console.log(`API Jira disponível em http://localhost:${PORT}/api/jira`);
+  });
+}
+
+export default app;
