@@ -160,9 +160,19 @@ class DataService {
    */
   async syncFromJira() {
     try {
+      // Envia credenciais junto com a requisição
+      const config = this._config;
+      const body = config?.baseUrl ? {
+        baseUrl: config.baseUrl,
+        email: config.email || config.fullEmail,
+        token: config.token,
+        jql: config.jql
+      } : {};
+      
       const response = await fetch(`${this._apiBase}/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
       
       // Validar content-type antes deParsear JSON

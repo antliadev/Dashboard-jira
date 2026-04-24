@@ -6,23 +6,25 @@ export default async function handler(req, res) {
     const envValidation = configService.validateEnvVars();
     const config = configService.getConfig();
     
-    // GET - retorna configuração
-    if (req.method === 'GET') {
-      return res.status(200).json({
-        baseUrl: config.baseUrl,
-        email: config.email,
-        jql: config.jql,
-        cacheTtlMinutes: config.cacheTtlMinutes,
-        hasToken: config.hasToken,
-        lastSync: config.lastSync,
-        lastSyncStatus: config.lastSyncStatus,
-        lastSyncError: config.lastSyncError,
-        isConfigured: config.isConfigured,
-        isProduction: config.isProduction,
-        source: config.source,
-        canEdit: config.canEdit
-      });
-    }
+// GET - retorna configuração
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      baseUrl: config.baseUrl,
+      email: config.email,
+      fullEmail: config.fullEmail, // email completo para sync
+      token: config.token, // token para sync
+      jql: config.jql,
+      cacheTtlMinutes: config.cacheTtlMinutes,
+      hasToken: config.hasToken,
+      lastSync: config.lastSync,
+      lastSyncStatus: config.lastSyncStatus,
+      lastSyncError: config.lastSyncError,
+      isConfigured: config.isConfigured,
+      isProduction: config.isProduction,
+      source: config.source,
+      canEdit: config.canEdit
+    });
+  }
     
     // POST - salvar configuração
     if (req.method === 'POST') {
