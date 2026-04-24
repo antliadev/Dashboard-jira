@@ -183,15 +183,14 @@ class DataService {
         throw new Error(`Erro ao sincronizar: resposta inválida do servidor (${response.status})`);
       }
       
-      const result = await response.json();
-      
+const result = await response.json();
+       
       if (!response.ok) {
         throw new Error(result.error || 'Erro ao sincronizar');
       }
-      
-      // Carrega os dados do dashboard após sincronização
-      await this.loadJiraData();
-      
+
+      // NÃO carrega dados automaticamente - o usuário deve ir ao dashboard
+      // ou clicar em atualizar na páginaDados
       return result;
     } catch (error) {
       console.error('[DataService] Erro ao sincronizar:', error.message);

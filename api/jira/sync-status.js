@@ -1,4 +1,5 @@
 import { configService } from '../../lib/configService.js';
+import { isConfigured } from '../../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -6,13 +7,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const config = configService.getConfig();
+    // Se tem Supabase, assume configurado
+    if (isConfigured) {
+      return res.status(200).json({
+        isConfigured: true,
+        hasToken: true,
+        lastSync: null,
+        lastSyncStatus: null,
+        lastSyncError: null
+      });
+    }
+    
     return res.status(200).json({
-      isConfigured: config.isConfigured,
-      hasToken: config.hasToken,
-      lastSync: config.lastSync,
-      lastSyncStatus: config.lastSyncStatus,
-      lastSyncError: config.lastSyncError
+      isConfigured: false,
+      lastSync: null,
+      lastSyncStatus: null,
+      lastSyncError: null
     });
   } catch (error) {
     return res.status(200).json({

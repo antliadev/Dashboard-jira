@@ -1,3 +1,4 @@
+import { configService } from '../../lib/configService.js';
 import { jiraService } from '../../lib/jiraService.js';
 
 export default async function handler(req, res) {
@@ -8,22 +9,30 @@ export default async function handler(req, res) {
   try {
     let { baseUrl, email, token, jql } = req.body || {};
     
-    // Sanitizar
-    baseUrl = baseUrl?.trim()?.replace(/\/$/, '') || '';
-    email = email?.trim() || '';
-    token = token?.trim() || '';
-    jql = jql?.trim();
+    // Se não fornecer, buscar do Supabase
+    if (!baseUrl || !email || !token) {
+      const conn = await configService.getActiveConnection();
+      if (conn) {
+        baseUrl = conn.baseUrl;
+        email = conn.email;
+        token = conn.token;
+        jql = jql || conn.jql;
+      }
+    }
     
-    // Validar credenciais
+    // Validar
     if (!baseUrl) {
-      return res.status(400).json({ success: false, error: 'URL é obrigatória' });
+      return res.status(400).json({ success: false, error: 'Configure o Jira primeiro na página Dados.' });
     }
     if (!baseUrl.startsWith('https://')) {
-      return res.status(400).json({ success: false, error: 'URL deve começar com https://' });
+      baseUrl = baseUrl.replace(/\/$/, '');
+      baseUrl = 'https://' + baseUrl.replace(/^https?:\/\//, '');
     }
+    
     if (!email) {
       return res.status(400).json({ success: false, error: 'Email é obrigatório' });
     }
+    
     if (!token) {
       return res.status(400).json({ success: false, error: 'Token é obrigatório' });
     }

@@ -10,7 +10,9 @@ const router = express.Router();
 router.get('/config', (req, res) => {
   try {
     const config = configService.getConfig();
-    res.json(config);
+    // Expõe a origem da configuração para o frontend
+    const source = configService.getConfig(true).source || config?.source || 'none';
+    res.json({ ...config, source });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -19,6 +21,10 @@ router.get('/config', (req, res) => {
 router.post('/config', (req, res) => {
   try {
     const { baseUrl, email, token, jql, cacheTtlMinutes } = req.body;
+    // Em produção, não permitir salvar token via frontend
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'Configurações NÃO podem ser salvas via frontend em produção. Use variáveis de ambiente.' });
+    }
     
     // Validar URL antes de salvar
     if (baseUrl) {
