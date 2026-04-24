@@ -4,7 +4,7 @@
  */
 import '../styles/executive.css';
 import { dataService } from '../data/data-service.js';
-import { formatDate } from '../utils/helpers.js';
+import { formatDate, sanitize, sanitizeTitle } from '../utils/helpers.js';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -17,11 +17,22 @@ window.exportExecutivePNG = async function(projectKey) {
   }
 
   const btn = document.getElementById('export-png-btn');
+  if (!btn) {
+    alert('Botão de exportação não encontrado');
+    return;
+  }
+  
   const originalText = btn.innerHTML;
   btn.innerHTML = '<span>Exportando...</span>';
   btn.disabled = true;
 
   try {
+    // Verificar se dados estão carregados
+    const summary = dataService.buildProjectExecutiveSummary(projectKey);
+    if (!summary) {
+      throw new Error('Dados do projeto não carregados. Sincronize os dados primeiro.');
+    }
+
     const canvas = await html2canvas(element, {
       backgroundColor: '#0B0F1A',
       scale: 2,
@@ -30,7 +41,7 @@ window.exportExecutivePNG = async function(projectKey) {
     });
 
     const link = document.createElement('a');
-    link.download = 'resumo-executivo-' + projectKey + '.png';
+    link.download = 'resumo-executivo-' + encodeURIComponent(projectKey) + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   } catch (e) {
@@ -50,11 +61,22 @@ window.exportExecutivePDF = async function(projectKey) {
   }
 
   const btn = document.getElementById('export-pdf-btn');
+  if (!btn) {
+    alert('Botão de exportação não encontrado');
+    return;
+  }
+
   const originalText = btn.innerHTML;
   btn.innerHTML = '<span>Exportando...</span>';
   btn.disabled = true;
 
   try {
+    // Verificar se dados estão carregados
+    const summary = dataService.buildProjectExecutiveSummary(projectKey);
+    if (!summary) {
+      throw new Error('Dados do projeto não carregados. Sincronize os dados primeiro.');
+    }
+
     const canvas = await html2canvas(element, {
       backgroundColor: '#0B0F1A',
       scale: 2,
@@ -64,14 +86,29 @@ window.exportExecutivePDF = async function(projectKey) {
 
     const imgData = canvas.toDataURL('image/png');
 
+    // Usar formato A4 Landscape para melhor compatibilidade
     const pdf = new jsPDF({
       orientation: 'landscape',
-      unit: 'px',
-      format: [canvas.width, canvas.height]
+      unit: 'mm',
+      format: 'a4'
     });
 
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save('resumo-executivo-' + projectKey + '.pdf');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    // Calcular dimensões para manter aspect ratio
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    const ratio = Math.min((pageWidth - 20) / imgWidth, (pageHeight - 20) / imgHeight);
+    const width = imgWidth * ratio;
+    const height = imgHeight * ratio;
+    
+    // Centralizar a imagem
+    const x = (pageWidth - width) / 2;
+    const y = (pageHeight - height) / 2;
+
+    pdf.addImage(imgData, 'PNG', x, y, width, height);
+    pdf.save('resumo-executivo-' + encodeURIComponent(projectKey) + '.pdf');
   } catch (e) {
     console.error('Erro ao exportar PDF:', e);
     alert('Erro ao exportar: ' + e.message);
@@ -93,7 +130,7 @@ export function renderExecutive(params) {
     <div class="page-actions">
       <select class="executive-project-select" id="project-select" onchange="location.hash='#/executive/' + this.value">
         <option value="">Selecionar projeto...</option>
-        ${dataService.getProjects().map(p => `<option value="${p.key}" ${p.key === projectKey ? 'selected' : ''}>${p.name}</option>`).join('')}
+        ${dataService.getProjects().map(p => `<option value="${sanitize(p.key)}" ${p.key === projectKey ? 'selected' : ''}>${sanitize(p.name)}</option>`).join('')}
       </select>
     </div>
   `;
@@ -119,9 +156,9 @@ function renderExecutiveContent(projectKey) {
             <p>Escolha um projeto para visualizar o resumo executivo</p>
             <div class="executive-select-grid">
               ${dataService.getProjects().map(p => `
-                <button class="executive-select-card" onclick="location.hash='#/executive/${p.key}'">
-                  <span class="executive-select-key">${p.key}</span>
-                  <span class="executive-select-name">${p.name}</span>
+                <button class="executive-select-card" onclick="location.hash='#/executive/${sanitize(p.key)}'">
+                  <span class="executive-select-key">${sanitize(p.key)}</span>
+                  <span class="executive-select-name">${sanitize(p.name)}</span>
                 </button>
               `).join('')}
             </div>
@@ -170,10 +207,10 @@ function renderExecutiveContent(projectKey) {
   const blockedBarPercent = totals.issues > 0 ? Math.round((totals.blocked / totals.issues) * 100) : 0;
   const otherPercent = Math.max(0, 100 - donePercent - progressBarPercent - blockedBarPercent);
 
-  // Função para exibir ticket: key + " — " + title
+  // Função para exibir ticket: key + " — " + title (com sanitização)
   const formatTicket = (item) => {
     const title = item.title || 'Sem título';
-    return `${item.key} — ${title}`;
+    return `${sanitize(item.key)} — ${sanitize(title)}`;
   };
 
   content.innerHTML = `
@@ -183,10 +220,10 @@ function renderExecutiveContent(projectKey) {
         <!-- HEADER -->
         <div class="executive-header">
           <div class="executive-header-left">
-            <div class="executive-project-badge" style="background: linear-gradient(135deg, #3B82F6, #8B5CF6)">${project.key.substring(0, 2)}</div>
+            <div class="executive-project-badge" style="background: linear-gradient(135deg, #3B82F6, #8B5CF6)">${sanitize(project.key.substring(0, 2))}</div>
             <div class="executive-project-title">
-              <h1>${project.name}</h1>
-              <span class="executive-project-meta"><span class="executive-key-badge">${project.key}</span> • Atualizado ${formatDate(lastSync)}</span>
+              <h1>${sanitize(project.name)}</h1>
+              <span class="executive-project-meta"><span class="executive-key-badge">${sanitize(project.key)}</span> • Atualizado ${formatDate(lastSync)}</span>
             </div>
           </div>
           <div class="executive-header-right">
@@ -365,9 +402,9 @@ function renderExecutiveContent(projectKey) {
               <div class="executive-team-grid">
                 ${team.length > 0 ? team.map(t => `
                   <div class="executive-team-item">
-                    <img src="${t.avatar || ''}" class="executive-team-avatar" alt="${t.name}">
+                    <img src="${sanitizeTitle(t.avatar || '')}" class="executive-team-avatar" alt="${sanitizeTitle(t.name)}" onerror="this.style.display='none'">
                     <div class="executive-team-info">
-                      <div class="executive-team-name" title="${t.name}">${t.name}</div>
+                      <div class="executive-team-name" title="${sanitizeTitle(t.name)}">${sanitize(t.name)}</div>
                       <div class="executive-team-tickets">${t.totalTickets} tickets</div>
                     </div>
                   </div>
@@ -384,10 +421,10 @@ function renderExecutiveContent(projectKey) {
               <div class="executive-risks-content">
                 ${risks.length > 0 ? risks.map(r => `
                   <div class="executive-risk-item risk-${r.level.toLowerCase()}">
-                    <span class="executive-risk-badge ${r.level.toLowerCase()}">${r.level}</span>
+                    <span class="executive-risk-badge ${r.level.toLowerCase()}">${sanitize(r.level)}</span>
                     <div class="executive-risk-body">
-                      <span class="executive-risk-title" title="${r.title}">${r.key} — ${r.title}</span>
-                      <span class="executive-risk-meta">${r.reason} • Resp: ${r.assignee}</span>
+                      <span class="executive-risk-title" title="${sanitizeTitle(r.title)}">${sanitize(r.key)} — ${sanitize(r.title)}</span>
+                      <span class="executive-risk-meta">${sanitize(r.reason)} • Resp: ${sanitize(r.assignee)}</span>
                     </div>
                   </div>
                 `).join('') : '<div class="executive-list-empty success">Nenhum risco identificado</div>'}
