@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     const config = configService.getConfig();
-    res.json({
+    return res.status(200).json({
       isConfigured: config.isConfigured,
       hasToken: config.hasToken,
       lastSync: config.lastSync,
@@ -15,6 +15,11 @@ export default async function handler(req, res) {
       lastSyncError: config.lastSyncError
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(200).json({
+      isConfigured: false,
+      lastSync: null,
+      lastSyncStatus: null,
+      lastSyncError: error.message
+    });
   }
 }
