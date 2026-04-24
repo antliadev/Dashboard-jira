@@ -7,15 +7,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ 
-        error: 'Jira não configurado. Configure as credenciais primeiro.' 
-      });
-    }
-
+    // Aceita credenciais no corpo da requisição ou usa configService
+    const { baseUrl, email, token, jql } = req.body;
+    
     configService.updateSyncStatus('running');
     
-    const data = await jiraService.fetchAllIssues();
+    // Busca dados usando credenciais fornecidas ou do configService
+    const data = await jiraService.fetchAllIssuesWithConfig(baseUrl, email, token, jql);
     
     configService.updateSyncStatus('success');
     
