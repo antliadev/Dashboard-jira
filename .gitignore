@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Jira config (contém dados sensíveis)
+jira-config.json
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

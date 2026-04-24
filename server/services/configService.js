@@ -1,0 +1,143 @@
+/**
+ * configService.js — Serviço de configuração segura do Jira
+ * 
+ * Gerencia configurações do Jira de forma segura.
+ * O token é armazenado apenas em memória no backend, nunca exposto.
+ */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_FILE = path.join(__dirname, '../../jira-config.json');
+
+const DEFAULT_CONFIG = {
+  baseUrl: '',
+  email: '',
+  jql: 'project in (BLCASH, BB, CEP, CTR, CVM175, DTVSLI, ETF, PGINT, SDDS2, SDDSF2, BNPTD, BTA, MAR, P1) AND status is not EMPTY ORDER BY project ASC, status ASC, assignee ASC, updated DESC',
+  cacheTtlMinutes: 10,
+  lastSync: null,
+  lastSyncStatus: null,
+  lastSyncError: null
+};
+
+class ConfigService {
+  constructor() {
+    this._config = null;
+    this._loadConfig();
+  }
+
+  _loadConfig() {
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
+        this._config = { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+      } else {
+        this._config = { ...DEFAULT_CONFIG };
+      }
+    } catch (error) {
+      console.error('[ConfigService] Erro ao carregar configuração:', error.message);
+      this._config = { ...DEFAULT_CONFIG };
+    }
+  }
+
+  _saveConfig() {
+    try {
+      // Não salvar o token em arquivo
+      const configToSave = {
+        baseUrl: this._config.baseUrl,
+        email: this._config.email,
+        jql: this._config.jql,
+        cacheTtlMinutes: this._config.cacheTtlMinutes,
+        lastSync: this._config.lastSync,
+        lastSyncStatus: this._config.lastSyncStatus,
+        lastSyncError: this._config.lastSyncError
+      };
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(configToSave, null, 2));
+    } catch (error) {
+      console.error('[ConfigService] Erro ao salvar configuração:', error.message);
+    }
+  }
+
+  getConfig(includeToken = false) {
+    if (!this._config) {
+      this._loadConfig();
+    }
+    
+    return {
+      baseUrl: this._config.baseUrl,
+      email: this._config.email,
+      jql: this._config.jql,
+      cacheTtlMinutes: this._config.cacheTtlMinutes,
+      hasToken: !!this._config.token,
+      tokenMasked: this._config.token ? '********' + this._config.token.slice(-4) : null,
+      lastSync: this._config.lastSync,
+      lastSyncStatus: this._config.lastSyncStatus,
+      lastSyncError: this._config.lastSyncError,
+      isConfigured: !!(this._config.baseUrl && this._config.email && this._config.token)
+    };
+  }
+
+  setConfig({ baseUrl, email, token, jql, cacheTtlMinutes }) {
+    if (baseUrl) {
+      if (!baseUrl.startsWith('https://')) {
+        throw new Error('URL deve começar com https://');
+      }
+      this._config.baseUrl = baseUrl.replace(/\/$/, '');
+    }
+    
+    if (email) {
+      if (!email.includes('@')) {
+        throw new Error('Email inválido');
+      }
+      this._config.email = email;
+    }
+    
+    if (token) {
+      this._config.token = token;
+    }
+    
+    if (jql) {
+      this._config.jql = jql;
+    }
+    
+    if (cacheTtlMinutes !== undefined) {
+      this._config.cacheTtlMinutes = parseInt(cacheTtlMinutes, 10) || 10;
+    }
+    
+    this._saveConfig();
+    return this.getConfig();
+  }
+
+  getToken() {
+    return this._config.token;
+  }
+
+  getJQL() {
+    return this._config.jql;
+  }
+
+  getCacheTtl() {
+    return (this._config.cacheTtlMinutes || 10) * 60 * 1000;
+  }
+
+  updateSyncStatus(status, error = null) {
+    this._config.lastSync = new Date().toISOString();
+    this._config.lastSyncStatus = status;
+    this._config.lastSyncError = error;
+    this._saveConfig();
+  }
+
+  clearCache() {
+    this._config.lastSync = null;
+    this._config.lastSyncStatus = null;
+    this._config.lastSyncError = null;
+    this._saveConfig();
+  }
+
+  isConfigured() {
+    return !!(this._config.baseUrl && this._config.email && this._config.token);
+  }
+}
+
+export const configService = new ConfigService();

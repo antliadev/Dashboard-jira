@@ -12,14 +12,19 @@ import { renderProjects } from './pages/projects.js';
 import { renderCards } from './pages/cards.js';
 import { renderAnalysts } from './pages/analysts.js';
 import { renderData } from './pages/data.js';
+import { renderBoard } from './pages/board.js';
+import { renderExecutive } from './pages/executive.js';
 
-// ─── Configuração de Rotas ────────────────────────────
+// ─── Configuração de Rotas ──────────────────────────────
 
 registerRoute('/', renderDashboard);
 registerRoute('/projects', renderProjects);
 registerRoute('/cards', renderCards);
 registerRoute('/analysts', renderAnalysts);
+registerRoute('/board', renderBoard);
 registerRoute('/data', renderData);
+registerRoute('/executive', renderExecutive);
+registerRoute('/executive/:projectKey', renderExecutive);
 
 // Rotas de detalhe (Placeholders para futura expansão)
 registerRoute('/projects/:id', (params) => {
@@ -43,17 +48,33 @@ setNotFound(() => {
 
 // ─── Inicialização ────────────────────────────────────
 
-function initApp() {
+async function initApp() {
   // Renderizar componentes estáticos
   renderSidebar();
 
   // Inicializar roteador
   initRouter();
 
+  // Carregar configuração e verificar se há dados salvos
+  try {
+    await dataService.loadConfig();
+    
+    const syncStatus = await dataService.getSyncStatus();
+    
+    // Se já está configurado e tem última sincronização bem-sucedida, carrega os dados
+    if (syncStatus.isConfigured && syncStatus.lastSyncStatus === 'success') {
+      await dataService.loadJiraData();
+      console.log('Jira Dashboard conectado ao Jira Cloud com sucesso.');
+    } else if (!syncStatus.isConfigured) {
+      console.log('Jira não configurado. Use a página Dados para configurar.');
+    }
+  } catch (error) {
+    console.warn('Erro ao inicializar:', error.message);
+  }
+
   // Escutar mudanças no serviço de dados para re-renderizar a sidebar (badge de fonte)
   dataService.subscribe(() => {
     renderSidebar();
-    // Forçar re-render da página atual se necessário (opcional)
   });
 
   console.log('Jira Dashboard inicializado com sucesso.');
