@@ -4,22 +4,10 @@ export default async function handler(req, res) {
   try {
     // Validar variáveis de ambiente em produção
     const envValidation = configService.validateEnvVars();
-    
-    if (!envValidation.valid) {
-      return res.status(200).json({
-        isConfigured: false,
-        source: 'missing',
-        message: envValidation.message,
-        missing: envValidation.missing,
-        isProduction: true,
-        canEdit: false
-      });
-    }
+    const config = configService.getConfig();
     
     // GET - retorna configuração
     if (req.method === 'GET') {
-      const config = configService.getConfig();
-      
       return res.status(200).json({
         baseUrl: config.baseUrl,
         email: config.email,
@@ -38,14 +26,13 @@ export default async function handler(req, res) {
     
     // POST - salvar configuração
     if (req.method === 'POST') {
-      // Em produção, retorna erro claro
-      if (configService.getConfig().isProduction) {
+      // Verificar se está bloqueado
+      if (!config.canEdit) {
         return res.status(403).json({
           success: false,
-          message: 'Configuração em produção não pode ser alterada via API.',
-          isProduction: true,
-          canEdit: false,
-          instructions: 'Configure JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN e JIRA_JQL nas variáveis de ambiente da Vercel.'
+          message: 'Configuração bloqueada. Defina JIRA_LOCK_CONFIG=0 para habilitar edição.',
+          isProduction: config.isProduction,
+          canEdit: false
         });
       }
       
