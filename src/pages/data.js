@@ -2,7 +2,7 @@
  * data.js — Página de configuração e sincronização do Jira
  */
 import { dataService } from '../data/data-service.js';
-import { formatDateTime } from '../utils/helpers.js';
+import { formatDateTime, sanitize, sanitizeTitle } from '../utils/helpers.js';
 
 let syncStatus = null;
 let config = null;
@@ -79,7 +79,7 @@ function renderDataContent() {
             ${lastSync ? formatDateTime(lastSync) : 'Nunca'}
           </div>
           ${lastSyncStatus === 'running' ? '<div style="color: var(--info); font-size: 12px;">Sincronizando...</div>' : ''}
-          ${lastSyncStatus === 'error' ? `<div style="color: var(--danger); font-size: 11px;">${lastSyncError}</div>` : ''}
+          ${lastSyncStatus === 'error' ? `<div style="color: var(--danger); font-size: 11px;">${sanitize(lastSyncError || '')}</div>` : ''}
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Total de Tickets</div>
@@ -103,12 +103,12 @@ function renderDataContent() {
         
         <div class="form-group">
           <label>Jira Base URL *</label>
-          <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" value="${config?.baseUrl || ''}" ${!canEdit ? 'disabled' : ''}>
+          <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" value="${sanitize(config?.baseUrl || '')}" ${!canEdit ? 'disabled' : ''}>
         </div>
         
         <div class="form-group">
           <label>Jira Email *</label>
-          <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="${config?.email || ''}" ${!canEdit ? 'disabled' : ''}>
+          <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="${sanitize(config?.email || '')}" ${!canEdit ? 'disabled' : ''}>
         </div>
         
         <div class="form-group">
@@ -124,7 +124,7 @@ function renderDataContent() {
         
         <div class="form-group">
           <label>JQL (Filtro)</label>
-          <textarea id="jira-jql" rows="3" style="font-family: monospace; font-size: 12px;" ${!canEdit ? 'readonly' : ''}>${config?.jql || 'project in (...) AND status is not EMPTY ORDER BY ...'}</textarea>
+          <textarea id="jira-jql" rows="3" style="font-family: monospace; font-size: 12px;" ${!canEdit ? 'readonly' : ''}>${sanitize(config?.jql || 'project in (...) AND status is not EMPTY ORDER BY ...')}</textarea>
         </div>
         
         <div class="form-group">
@@ -137,8 +137,8 @@ function renderDataContent() {
           <div class="alert-item ${testResult.success ? '' : 'warning'}" style="margin-bottom: 16px;">
             <div class="alert-text">
               ${testResult.success 
-                ? `<strong>✓ Conexão OK!</strong> Usuário: ${testResult.user?.displayName} (${testResult.user?.email}). Tickets encontrados: ${testResult.totalTickets}`
-                : `<strong>✗ Erro:</strong> ${testResult.error}`
+                ? `<strong>✓ Conexão OK!</strong> Usuário: ${sanitize(testResult.user?.displayName || '')} (${sanitize(testResult.user?.email || '')}). Tickets encontrados: ${testResult.totalTickets}`
+                : `<strong>✗ Erro:</strong> ${sanitize(testResult.error || '')}`
               }
             </div>
           </div>
@@ -194,14 +194,14 @@ function renderDataContent() {
                 <tbody>
                   ${rawData.issues.slice(0, 5).map(issue => `
                     <tr>
-                      <td style="font-weight: 600; color: var(--accent);">${issue.key}</td>
-                      <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${issue.title}</td>
-                      <td>${issue.project.key}</td>
-                      <td><span class="badge badge-progress">${issue.status.name}</span></td>
+                      <td style="font-weight: 600; color: var(--accent);">${sanitize(issue.key || '')}</td>
+                      <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sanitize(issue.title || '')}</td>
+                      <td>${sanitize(issue.project.key || '')}</td>
+                      <td><span class="badge badge-progress">${sanitize(issue.status.name || '')}</span></td>
                       <td>
                         <div style="display: flex; align-items: center; gap: 6px;">
-                          ${issue.assignee?.avatar ? `<img src="${issue.assignee.avatar}" class="avatar avatar-sm">` : ''}
-                          <span>${issue.assignee?.name || '—'}</span>
+                          ${issue.assignee?.avatar ? `<img src="${sanitizeTitle(issue.assignee.avatar)}" class="avatar avatar-sm" onerror="this.style.display='none'">` : ''}
+                          <span>${sanitize(issue.assignee?.name || '—')}</span>
                         </div>
                       </td>
                     </tr>

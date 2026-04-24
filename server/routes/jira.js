@@ -20,6 +20,16 @@ router.post('/config', (req, res) => {
   try {
     const { baseUrl, email, token, jql, cacheTtlMinutes } = req.body;
     
+    // Validar URL antes de salvar
+    if (baseUrl) {
+      if (!baseUrl.startsWith('https://')) {
+        return res.status(400).json({ error: 'URL deve começar com https://' });
+      }
+      if (!baseUrl.includes('.atlassian.net')) {
+        return res.status(400).json({ error: 'URL deve ser um domínio do Jira (.atlassian.net)' });
+      }
+    }
+    
     const updatedConfig = configService.setConfig({
       baseUrl,
       email,

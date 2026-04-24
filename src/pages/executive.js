@@ -10,6 +10,9 @@ import { jsPDF } from 'jspdf';
 
 // Funções de exportação no escopo global
 window.exportExecutivePNG = async function(projectKey) {
+  // Decodificar se vier encodeado
+  const decodedKey = decodeURIComponent(projectKey);
+  
   const element = document.getElementById('executive-export-area');
   if (!element) {
     alert('Área de exportação não encontrada');
@@ -28,7 +31,7 @@ window.exportExecutivePNG = async function(projectKey) {
 
   try {
     // Verificar se dados estão carregados
-    const summary = dataService.buildProjectExecutiveSummary(projectKey);
+    const summary = dataService.buildProjectExecutiveSummary(decodedKey);
     if (!summary) {
       throw new Error('Dados do projeto não carregados. Sincronize os dados primeiro.');
     }
@@ -41,7 +44,7 @@ window.exportExecutivePNG = async function(projectKey) {
     });
 
     const link = document.createElement('a');
-    link.download = 'resumo-executivo-' + encodeURIComponent(projectKey) + '.png';
+    link.download = 'resumo-executivo-' + encodeURIComponent(decodedKey) + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   } catch (e) {
@@ -54,6 +57,9 @@ window.exportExecutivePNG = async function(projectKey) {
 };
 
 window.exportExecutivePDF = async function(projectKey) {
+  // Decodificar se vier encodeado
+  const decodedKey = decodeURIComponent(projectKey);
+  
   const element = document.getElementById('executive-export-area');
   if (!element) {
     alert('Área de exportação não encontrada');
@@ -72,7 +78,7 @@ window.exportExecutivePDF = async function(projectKey) {
 
   try {
     // Verificar se dados estão carregados
-    const summary = dataService.buildProjectExecutiveSummary(projectKey);
+    const summary = dataService.buildProjectExecutiveSummary(decodedKey);
     if (!summary) {
       throw new Error('Dados do projeto não carregados. Sincronize os dados primeiro.');
     }
@@ -108,7 +114,7 @@ window.exportExecutivePDF = async function(projectKey) {
     const y = (pageHeight - height) / 2;
 
     pdf.addImage(imgData, 'PNG', x, y, width, height);
-    pdf.save('resumo-executivo-' + encodeURIComponent(projectKey) + '.pdf');
+    pdf.save('resumo-executivo-' + encodeURIComponent(decodedKey) + '.pdf');
   } catch (e) {
     console.error('Erro ao exportar PDF:', e);
     alert('Erro ao exportar: ' + e.message);
@@ -182,7 +188,7 @@ function renderExecutiveContent(projectKey) {
             </svg>
           </div>
           <h3>Projeto não encontrado</h3>
-          <p>O projeto ${projectKey} não possui dados sincronizados.</p>
+          <p>O projeto ${sanitize(projectKey)} não possui dados sincronizados.</p>
           <button class="btn btn-primary" onclick="location.hash='#/data'">Sincronizar Dados</button>
         </div>
       </div>
@@ -228,13 +234,13 @@ function renderExecutiveContent(projectKey) {
           </div>
           <div class="executive-header-right">
             <span class="executive-company-text">ANTLIA</span>
-            <button class="executive-export-btn" id="export-png-btn" onclick="exportExecutivePNG('${project.key}')">
+            <button class="executive-export-btn" id="export-png-btn" onclick="exportExecutivePNG('${encodeURIComponent(sanitize(project.key))}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
               </svg>
               PNG
             </button>
-            <button class="executive-export-btn" id="export-pdf-btn" onclick="exportExecutivePDF('${project.key}')" style="background: linear-gradient(135deg, #10B981, #059669)">
+            <button class="executive-export-btn" id="export-pdf-btn" onclick="exportExecutivePDF('${encodeURIComponent(sanitize(project.key))}')" style="background: linear-gradient(135deg, #10B981, #059669)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
               </svg>
