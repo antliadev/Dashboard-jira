@@ -46,6 +46,19 @@ function renderDataContent() {
   const lastSyncError = syncStatus?.lastSyncError || null;
   const rawData = dataService.getRawJiraData();
   
+  // Detectar modo de produção
+  const isProduction = config?.isProduction || false;
+  const canEdit = config?.canEdit !== false; // default true
+  const source = config?.source || 'none';
+  
+  // Mensagem de acordo com o source
+  let configMessage = '';
+  if (source === 'env' || isProduction) {
+    configMessage = '<div class="alert-item" style="background: var(--bg-secondary); border-left: 3px solid var(--accent); margin-bottom: 16px;"><div class="alert-text">⚙ Configuração Jira carregada via variáveis de ambiente. Altere-as no painel da Vercel.</div></div>';
+  } else if (source === 'missing') {
+    configMessage = '<div class="alert-item warning" style="margin-bottom: 16px;"><div class="alert-text">⚠ Jira não configurado no ambiente de produção. Configure JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN e JIRA_JQL no painel da Vercel.</div></div>';
+  }
+  
   content.innerHTML = `
     <div style="max-width: 900px; margin: 0 auto;">
       
@@ -77,27 +90,30 @@ function renderDataContent() {
         </div>
       </div>
 
+      <!-- Mensagem de configuração -->
+      ${configMessage}
+
       <!-- Formulário de Configuração -->
       <div class="data-section">
         <h3>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           Configuração do Jira
         </h3>
         
         <div class="form-group">
           <label>Jira Base URL *</label>
-          <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" value="${config?.baseUrl || ''}">
+          <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" value="${config?.baseUrl || ''}" ${!canEdit ? 'disabled' : ''}>
         </div>
         
         <div class="form-group">
           <label>Jira Email *</label>
-          <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="${config?.email || ''}">
+          <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="${config?.email || ''}" ${!canEdit ? 'disabled' : ''}>
         </div>
         
         <div class="form-group">
           <label>API Token *</label>
           <div style="position: relative;">
-            <input type="password" id="jira-token" placeholder="Cole seu API Token aqui">
+            <input type="password" id="jira-token" placeholder="${canEdit ? 'Cole seu API Token aqui' : 'Token configurado via ambiente'}" ${!canEdit ? 'disabled' : ''}>
             ${config?.tokenMasked ? `<div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted);">${config.tokenMasked}</div>` : ''}
           </div>
           <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
@@ -107,12 +123,12 @@ function renderDataContent() {
         
         <div class="form-group">
           <label>JQL (Filtro)</label>
-          <textarea id="jira-jql" rows="3" style="font-family: monospace; font-size: 12px;">${config?.jql || 'project in (BLCASH, BB, CEP, CTR, CVM175, DTVSLI, ETF, PGINT, SDDS2, SDDSF2, BNPTD, BTA, MAR, P1) AND status is not EMPTY ORDER BY project ASC, status ASC, assignee ASC, updated DESC'}</textarea>
+          <textarea id="jira-jql" rows="3" style="font-family: monospace; font-size: 12px;" ${!canEdit ? 'readonly' : ''}>${config?.jql || 'project in (...) AND status is not EMPTY ORDER BY ...'}</textarea>
         </div>
         
         <div class="form-group">
           <label>Cache TTL (minutos)</label>
-          <input type="number" id="jira-cache-ttl" min="1" max="60" value="${config?.cacheTtlMinutes || 10}" style="width: 120px;">
+          <input type="number" id="jira-cache-ttl" min="1" max="60" value="${config?.cacheTtlMinutes || 10}" style="width: 120px;" ${!canEdit ? 'disabled' : ''}>
         </div>
         
         <!-- Resultado do Teste -->
@@ -132,10 +148,12 @@ function renderDataContent() {
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             Testar Conexão
           </button>
+          ${canEdit ? `
           <button class="btn btn-primary" id="btn-save-config">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
             Salvar Configuração
           </button>
+          ` : ''}
         </div>
       </div>
 
@@ -272,23 +290,24 @@ function setupEventListeners() {
     }
   });
 
-  // Salvar configuração
-  document.getElementById('btn-save-config')?.addEventListener('click', async () => {
-    const btn = document.getElementById('btn-save-config');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></span> Salvando...';
-    
-    try {
-      const configData = getFormData();
-      await dataService.saveConfig(configData);
-      config = await dataService.loadConfig();
-      syncStatus = await dataService.getSyncStatus();
+  // Salvar configuração - apenas se pode editar
+  if (canEdit) {
+    document.getElementById('btn-save-config')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-save-config');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></span> Salvando...';
       
-      alert('Configuração salva com sucesso!');
-      renderDataContent();
-    } catch (error) {
-      alert('Erro ao salvar: ' + error.message);
-      renderDataContent();
+      try {
+        const configData = getFormData();
+        await dataService.saveConfig(configData);
+        config = await dataService.loadConfig();
+        syncStatus = await dataService.getSyncStatus();
+        
+        alert('Configuração salva com sucesso!');
+        renderDataContent();
+      } catch (error) {
+        alert('Erro ao salvar: ' + error.message);
+        renderDataContent();
     }
   });
 

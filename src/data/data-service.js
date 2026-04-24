@@ -58,11 +58,30 @@ class DataService {
   async loadConfig() {
     try {
       const response = await fetch(`${API_BASE}/config`);
-      if (response.ok) {
-        this._config = await response.json();
-        this._notify();
-        return this._config;
+      
+      // Validar content-type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[DataService] Config response not JSON:', text.substring(0, 100));
+        return null;
       }
+      
+      const config = await response.json();
+      this._config = config;
+      this._notify();
+      
+      // Detectar se é produção
+      if (config.isProduction) {
+        console.log('[DataService] Running in production mode');
+      }
+      
+      // Se source = env ou missing, não é editável
+      if (config.source === 'env' || config.isProduction) {
+        console.log('[DataService] Config loaded from environment variables');
+      }
+      
+      return config;
     } catch (error) {
       console.error('[DataService] Erro ao carregar configuração:', error.message);
     }
@@ -80,14 +99,32 @@ class DataService {
         body: JSON.stringify(config)
       });
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao salvar configuração');
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Resposta inválida do servidor');
       }
       
-      this._config = await response.json();
+      const result = await response.json();
+      
+      // Se retornou 403 ou message de produção, não é erro crítico
+      if (response.status === 403 || result.message?.includes('produção')) {
+        // Apenas recarrega configuração
+        await this.loadConfig();
+        return result;
+      }
+      
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Erro ao salvar configuração');
+      }
+      
+      this._config = result;
       this._notify();
-      return this._config;
+      return result;
+    } catch (error) {
+      console.error('[DataService] Erro ao salvar configuração:', error.message);
+      throw error;
+    }
+  }
     } catch (error) {
       console.error('[DataService] Erro ao salvar configuração:', error.message);
       throw error;
