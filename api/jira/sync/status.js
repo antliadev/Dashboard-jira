@@ -12,12 +12,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const isConfigured = await configService.isConfiguredAsync();
-    const config = configService.getConfig();
+    const config = await configService.getConfigAsync();
     
     return res.status(200).json({
-      isConfigured: isConfigured,
-      hasToken: config.hasToken || isConfigured,
+      isConfigured: config.isConfigured,
+      hasToken: config.isConfigured,
       lastSync: config.lastSync,
       lastSyncStatus: config.lastSyncStatus,
       lastSyncError: config.lastSyncError

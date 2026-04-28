@@ -12,6 +12,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
+  // Garantir que não haja cache para refletir mudanças globais imediatamente
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   try {
     const total = await countIssuesInDatabase();
     const config = await configService.getActiveConnection();
