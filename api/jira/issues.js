@@ -1,5 +1,8 @@
-import { jiraService } from '../../lib/jiraService.js';
-import { configService } from '../../lib/configService.js';
+/**
+ * issues.js — Lista issues do banco (não do Jira)
+ * Suporta filtros: project, status, assignee, priority, type
+ */
+import { fetchIssuesFromDatabase } from '../../lib/jiraService.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -7,39 +10,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    const { issues } = data;
-    
-    let filtered = issues;
-    
-    if (req.query.project) {
-      filtered = filtered.filter(i => i.project.key === req.query.project);
-    }
-    if (req.query.status) {
-      filtered = filtered.filter(i => i.status.name === req.query.status);
-    }
-    if (req.query.assignee) {
-      filtered = filtered.filter(i => i.assignee?.id === req.query.assignee);
-    }
-    if (req.query.priority) {
-      filtered = filtered.filter(i => i.priority?.name === req.query.priority);
-    }
-    if (req.query.type) {
-      filtered = filtered.filter(i => i.type.name === req.query.type);
-    }
-    
-    const limit = parseInt(req.query.limit) || 100;
+    const { project, status, assignee, priority, type } = req.query;
+
+    const issues = await fetchIssuesFromDatabase({ project, status, assignee, priority, type });
+
+    const limit  = Math.min(parseInt(req.query.limit)  || 100, 500);
     const offset = parseInt(req.query.offset) || 0;
-    
-    res.json({
-      total: filtered.length,
-      issues: filtered.slice(offset, offset + limit)
+    const paginated = issues.slice(offset, offset + limit);
+
+    return res.status(200).json({
+      total: issues.length,
+      limit,
+      offset,
+      issues: paginated
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[issues] Erro:', error.message);
+    return res.status(500).json({ error: error.message });
   }
 }

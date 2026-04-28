@@ -1,45 +1,45 @@
+/**
+ * test-connection.js — Testa conexão com Jira Cloud
+ *
+ * Aceita credenciais no body ou busca do Supabase (jira_connections).
+ * Usa a função testJiraConnection do lib/jiraService.js.
+ */
 import { configService } from '../../lib/configService.js';
-import { jiraService } from '../../lib/jiraService.js';
+import { testJiraConnection } from '../../lib/jiraService.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido' });
+    return res.status(405).json({ error: 'Método não permitido. Use POST.' });
   }
 
   try {
     let { baseUrl, email, token, jql } = req.body || {};
-    
-    // Se não fornecer, buscar do Supabase
+
+    // Se credenciais não foram fornecidas no body, buscar do Supabase
     if (!baseUrl || !email || !token) {
       const conn = await configService.getActiveConnection();
       if (conn) {
-        baseUrl = conn.baseUrl;
-        email = conn.email;
-        token = conn.token;
-        jql = jql || conn.jql;
+        baseUrl = baseUrl || conn.baseUrl;
+        email   = email   || conn.email;
+        token   = token   || conn.token;
+        jql     = jql     || conn.jql;
       }
     }
-    
-    // Validar
+
+    // Validação mínima antes de chamar a API
     if (!baseUrl) {
-      return res.status(400).json({ success: false, error: 'Configure o Jira primeiro na página Dados.' });
+      return res.status(400).json({ success: false, error: 'URL do Jira é obrigatória. Configure na página Dados.' });
     }
-    if (!baseUrl.startsWith('https://')) {
-      baseUrl = baseUrl.replace(/\/$/, '');
-      baseUrl = 'https://' + baseUrl.replace(/^https?:\/\//, '');
-    }
-    
     if (!email) {
-      return res.status(400).json({ success: false, error: 'Email é obrigatório' });
+      return res.status(400).json({ success: false, error: 'Email é obrigatório.' });
     }
-    
     if (!token) {
-      return res.status(400).json({ success: false, error: 'Token é obrigatório' });
+      return res.status(400).json({ success: false, error: 'API Token é obrigatório.' });
     }
-    
-    // Testar conexão
-    const result = await jiraService.testConnectionWithConfig(baseUrl, email, token, jql);
-    
+
+    // Testar conexão com a API do Jira
+    const result = await testJiraConnection(baseUrl, email, token, jql);
+
     if (result.success) {
       return res.status(200).json({
         success: true,
@@ -54,6 +54,7 @@ export default async function handler(req, res) {
       });
     }
   } catch (error) {
+    console.error('[test-connection] Erro:', error.message);
     return res.status(500).json({
       success: false,
       error: error.message

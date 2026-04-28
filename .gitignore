@@ -16,6 +16,15 @@ dist-ssr
 jira-config.json
 .env
 
+# Scripts de diagnóstico temporários (nunca commitar)
+test-*.js
+insert-to-supabase.js
+generate-upsert-sql.js
+test-jira-output.json
+create-table.js
+setup-supabase.js
+update-connection-token.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

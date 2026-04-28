@@ -157,25 +157,18 @@ class DataService {
 
   /**
    * Sincroniza dados do Jira
+   * NOTA: NÃO envia credenciais do frontend — elas são buscadas
+   * diretamente do Supabase (jira_connections) pelo backend.
    */
   async syncFromJira() {
     try {
-      // Envia credenciais junto com a requisição
-      const config = this._config;
-      const body = config?.baseUrl ? {
-        baseUrl: config.baseUrl,
-        email: config.email || config.fullEmail,
-        token: config.token,
-        jql: config.jql
-      } : {};
-      
       const response = await fetch(`${this._apiBase}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({})
       });
       
-      // Validar content-type antes deParsear JSON
+      // Validar content-type antes de parsear JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
@@ -183,14 +176,12 @@ class DataService {
         throw new Error(`Erro ao sincronizar: resposta inválida do servidor (${response.status})`);
       }
       
-const result = await response.json();
+      const result = await response.json();
        
       if (!response.ok) {
         throw new Error(result.error || 'Erro ao sincronizar');
       }
 
-      // NÃO carrega dados automaticamente - o usuário deve ir ao dashboard
-      // ou clicar em atualizar na páginaDados
       return result;
     } catch (error) {
       console.error('[DataService] Erro ao sincronizar:', error.message);
@@ -288,7 +279,7 @@ const result = await response.json();
     }));
     
     // Adicionar "Não atribuído" como usuário
-    const unassignedCount = issues.filter(i => !i.assignee).length;
+    const unassignedCount = issues.filter(i => !(i.assignee_id || i.assignee?.id)).length;
     if (unassignedCount > 0) {
       this._users.push({
         id: 'unassigned',
@@ -300,26 +291,46 @@ const result = await response.json();
     }
     
     // Transformar cards/issues
-    this._cards = issues.map(i => ({
-      id: i.id,
-      key: i.key,
-      projectId: this.findProjectIdByKey(i.project.key),
-      title: i.title,
-      description: '',
-      assigneeId: i.assignee?.id || 'unassigned',
-      status: i.status.name,
-      priority: this.mapPriority(i.priority?.name),
-      type: this.mapIssueType(i.type.name),
-      createdAt: i.createdAt,
-      updatedAt: i.updatedAt,
-      dueDate: i.resolvedAt,
-      sprint: null,
-      storyPoints: 0,
-      labels: i.labels || [],
-      timeEstimated: 0,
-      timeSpent: 0,
-      epicKey: i.parent?.key || null
-    }));
+    // Suporta AMBOS os formatos:
+    //   - flat (do banco): issue.project_key, issue.status_name, etc.
+    //   - aninhado (legado): issue.project.key, issue.status.name, etc.
+    this._cards = issues.map(i => {
+      // Detectar formato: se tem project_key é flat, senão é aninhado
+      const isFlat = 'project_key' in i;
+      
+      const projectKey  = isFlat ? i.project_key  : i.project?.key || '';
+      const assigneeId  = isFlat ? i.assignee_id  : i.assignee?.id || null;
+      const statusName  = isFlat ? i.status_name  : i.status?.name || 'Unknown';
+      const priorityName = isFlat ? i.priority_name : i.priority?.name || null;
+      const typeName    = isFlat ? i.type_name    : i.type?.name || 'Task';
+      const createdAt   = isFlat ? i.jira_created_at : i.createdAt;
+      const updatedAt   = isFlat ? i.jira_updated_at : i.updatedAt;
+      const resolvedAt  = isFlat ? i.jira_resolved_at : i.resolvedAt;
+      const parentKey   = isFlat ? i.parent_key   : i.parent?.key || null;
+      const issueId     = isFlat ? i.issue_id     : i.id;
+      const issueKey    = isFlat ? i.issue_key    : i.key;
+
+      return {
+        id: issueId,
+        key: issueKey,
+        projectId: this.findProjectIdByKey(projectKey),
+        title: i.title || '',
+        description: '',
+        assigneeId: assigneeId || 'unassigned',
+        status: statusName,
+        priority: this.mapPriority(priorityName),
+        type: this.mapIssueType(typeName),
+        createdAt,
+        updatedAt,
+        dueDate: resolvedAt,
+        sprint: null,
+        storyPoints: 0,
+        labels: i.labels || [],
+        timeEstimated: 0,
+        timeSpent: 0,
+        epicKey: parentKey
+      };
+    });
   }
 
   findProjectIdByKey(key) {
@@ -784,12 +795,6 @@ const result = await response.json();
     };
   }
 
-  /**
-   * Get project by key
-   */
-  getProjectByKey(key) {
-    return this._projects.find(p => p.key === key) || null;
-  }
 }
 
 export const dataService = new DataService();

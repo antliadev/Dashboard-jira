@@ -1,5 +1,7 @@
-import { jiraService } from '../../lib/jiraService.js';
-import { configService } from '../../lib/configService.js';
+/**
+ * analysts.js — Retorna analistas distintos do banco
+ */
+import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -7,13 +9,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
+    const issues = await fetchIssuesFromDatabase();
+    if (issues.length === 0) {
+      return res.status(200).json([]);
     }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data.analysts);
+    const data = buildDashboardData(issues);
+    return res.status(200).json(data.analysts);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[analysts] Erro:', error.message);
+    return res.status(500).json({ error: error.message });
   }
 }

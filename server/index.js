@@ -1,3 +1,9 @@
+/**
+ * server/index.js — Servidor Express para desenvolvimento local
+ *
+ * Usa as mesmas funções do lib/ que o Vercel usa em produção.
+ * O Vite faz proxy de /api/* para este servidor (porta 3001).
+ */
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -11,57 +17,48 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Todas as rotas Jira
 app.use('/api/jira', jiraRoutes);
 
-// Rota raiz /api/jira para teste
+// Rota raiz para verificação rápida
 app.get('/api/jira', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Jira Dashboard API (Desenvolvimento)',
     endpoints: [
-      'GET  /api/jira                 - Esta lista de endpoints',
-      'GET  /api/jira/config          - Retorna configuração atual',
-      'POST /api/jira/config          - Salva configuração do Jira',
+      'GET  /api/jira/config          - Configuração atual',
+      'POST /api/jira/config          - Salva configuração',
       'POST /api/jira/test-connection - Testa conexão com Jira',
       'GET  /api/jira/sync/status     - Status da sincronização',
-      'POST /api/jira/sync            - Sincroniza dados do Jira',
-      'GET  /api/jira/dashboard       - Dados do dashboard',
-      'GET  /api/jira/issues          - Lista de tickets',
-      'GET  /api/jira/projects        - Lista de projetos',
-      'GET  /api/jira/analysts        - Lista de analistas',
-      'GET  /api/jira/statuses        - Lista de status',
-      'GET  /api/jira/metrics         - Métricas',
-      'GET  /api/jira/board           - Board Kanban',
-      'POST /api/jira/cache/clear     - Limpa cache',
-      'GET  /api/jira/cache/stats     - Status do cache'
+      'POST /api/jira/sync            - Sincroniza Jira → banco',
+      'GET  /api/jira/dashboard       - Dados agregados (do banco)',
+      'GET  /api/jira/issues          - Lista de tickets (do banco)',
+      'GET  /api/jira/projects        - Projetos (do banco)',
+      'GET  /api/jira/analysts        - Analistas (do banco)',
+      'GET  /api/jira/statuses        - Status (do banco)',
+      'GET  /api/jira/metrics         - Métricas (do banco)',
+      'GET  /api/jira/board           - Board Kanban (do banco)'
     ],
-    production: 'Use Vercel para deploy em produção com rotas em /api/jira/*'
+    note: 'Dados são lidos do Supabase. Apenas /sync chama a API do Jira.'
   });
 });
 
+// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Error handler global
 app.use((err, req, res, next) => {
-  console.error('Erro não tratado:', err.message);
-  
-  if (err.message.includes('credenciais')) {
-    return res.status(401).json({ error: 'Credenciais do Jira não configuradas' });
-  }
-  
-  if (err.message.includes('JQL')) {
-    return res.status(400).json({ error: `JQL inválida: ${err.message}` });
-  }
-  
-  res.status(500).json({ error: 'Erro interno do servidor' });
+  console.error('[Server] Erro não tratado:', err.message);
+  res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
 });
 
-// Apenas iniciar servidor em desenvolvimento
+// Iniciar servidor
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-    console.log(`API Jira disponível em http://localhost:${PORT}/api/jira`);
+    console.log(`[Server] Rodando na porta ${PORT}`);
+    console.log(`[Server] API Jira: http://localhost:${PORT}/api/jira`);
   });
 }
 
