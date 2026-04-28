@@ -10,24 +10,13 @@ export default async function handler(req, res) {
   // GET - retorna configuração
   if (req.method === 'GET') {
     try {
-      const appConfig = configService.getConfig();
+      const config = await configService.getConfigAsync();
       
-      // Se tem Supabase, buscar dados do banco
-      if (isConfigured) {
-        const conn = await configService.getActiveConnection();
-        if (conn) {
-          return res.status(200).json({
-            isConfigured: true,
-            source: 'supabase',
-            baseUrl: conn.baseUrl,
-            email: conn.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
-            jql: conn.jql,
-            cacheTtlMinutes: Math.floor((conn.cacheTtl || 600000) / 60000),
-            hasToken: true,
-            canEdit: true,
-            isProduction: true
-          });
-        }
+      if (config.isConfigured) {
+        return res.status(200).json({
+          ...config,
+          email: '' // Sempre vazio conforme solicitado
+        });
       }
       
       // Se não tem conexão
@@ -36,7 +25,8 @@ export default async function handler(req, res) {
         source: 'supabase',
         message: 'Nenhuma conexão Jira configurada.',
         canEdit: true,
-        isProduction: true
+        isProduction: true,
+        email: ''
       });
     } catch (error) {
       return res.status(200).json({

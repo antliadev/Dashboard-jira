@@ -169,7 +169,8 @@ function renderDataContent() {
             
             <div class="form-group">
               <label>Jira Email *</label>
-              <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="${sanitize(config?.email || '')}" ${!canEdit ? 'disabled' : ''}>
+              <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="" ${!canEdit ? 'disabled' : ''}>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Por segurança, preencha seu e-mail para validar ou sincronizar.</div>
             </div>
             
             <div class="form-group">
