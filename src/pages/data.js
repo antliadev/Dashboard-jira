@@ -445,6 +445,8 @@ function setupEventListeners() {
     } catch (error) {
       alert('Erro ao limpar cache: ' + error.message);
     }
+  });
+
   // Forçar reset de sincronização
   document.getElementById('btn-force-reset')?.addEventListener('click', async () => {
     if (!confirm('Deseja interromper o status de sincronização? Use apenas se achar que o processo travou.')) return;
