@@ -1,280 +1,358 @@
 /**
- * jiraRoutes.js — Rotas da API do Jira
+ * jiraRoutes.js — Rotas da API do Jira (desenvolvimento local)
+ *
+ * IMPORTANTE: Estas rotas reutilizam as mesmas funções do lib/
+ * que são usadas pelas serverless functions em produção.
+ * Isso garante comportamento idêntico entre dev e prod.
+ *
+ * Fluxo:
+ *  - sync → busca Jira → upsert Supabase (via lib/jiraService)
+ *  - dashboard/issues/etc → lê do Supabase (nunca do Jira diretamente)
  */
 import express from 'express';
-import { jiraService } from '../services/jiraService.js';
-import { configService } from '../services/configService.js';
+import { configService } from '../../lib/configService.js';
+import {
+  testJiraConnection,
+  fetchAllIssuesFromJira,
+  upsertIssuesToDatabase,
+  fetchIssuesFromDatabase,
+  countIssuesInDatabase,
+  buildDashboardData
+} from '../../lib/jiraService.js';
 
 const router = express.Router();
 
-router.get('/config', (req, res) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/config — Retorna configuração
+// ─────────────────────────────────────────────
+router.get('/config', async (req, res) => {
   try {
-    const config = configService.getConfig();
-    // Expõe a origem da configuração para o frontend
-    const source = configService.getConfig(true).source || config?.source || 'none';
-    res.json({ ...config, source });
+    const conn = await configService.getActiveConnection();
+    if (conn) {
+      return res.json({
+        isConfigured: true,
+        source: 'supabase',
+        baseUrl: conn.baseUrl,
+        email: conn.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
+        jql: conn.jql,
+        cacheTtlMinutes: Math.floor((conn.cacheTtl || 600000) / 60000),
+        hasToken: true,
+        canEdit: true,
+        isProduction: false
+      });
+    }
+
+    // Sem conexão configurada
+    return res.json({
+      isConfigured: false,
+      source: 'none',
+      message: 'Nenhuma conexão Jira configurada.',
+      canEdit: true,
+      isProduction: false
+    });
   } catch (error) {
+    console.error('[config] Erro:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
-router.post('/config', (req, res) => {
+// ─────────────────────────────────────────────
+// POST /api/jira/config — Salva configuração
+// ─────────────────────────────────────────────
+router.post('/config', async (req, res) => {
   try {
     const { baseUrl, email, token, jql, cacheTtlMinutes } = req.body;
-    // Em produção, não permitir salvar token via frontend
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: 'Configurações NÃO podem ser salvas via frontend em produção. Use variáveis de ambiente.' });
-    }
-    
-    // Validar URL antes de salvar
-    if (baseUrl) {
-      if (!baseUrl.startsWith('https://')) {
-        return res.status(400).json({ error: 'URL deve começar com https://' });
-      }
-      if (!baseUrl.includes('.atlassian.net')) {
-        return res.status(400).json({ error: 'URL deve ser um domínio do Jira (.atlassian.net)' });
-      }
-    }
-    
-    const updatedConfig = configService.setConfig({
-      baseUrl,
-      email,
-      token,
-      jql,
-      cacheTtlMinutes
+
+    if (!baseUrl) return res.status(400).json({ error: 'URL é obrigatória' });
+    if (!email)   return res.status(400).json({ error: 'Email é obrigatório' });
+    if (!token)   return res.status(400).json({ error: 'Token é obrigatório' });
+
+    const updated = await configService.setConfig({ baseUrl, email, token, jql, cacheTtlMinutes });
+
+    return res.json({
+      success: true,
+      message: 'Configuração salva com sucesso!',
+      ...updated
     });
-    
-    // Recarregar cache com novo TTL se changed
-    if (cacheTtlMinutes) {
-      jiraService.reloadCache();
-    }
-    
-    res.json(updatedConfig);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('[config] Erro ao salvar:', error.message);
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
+// ─────────────────────────────────────────────
+// POST /api/jira/test-connection — Testa conexão
+// ─────────────────────────────────────────────
 router.post('/test-connection', async (req, res) => {
   try {
-    const { baseUrl, email, token, jql } = req.body;
-    
-    // Configurar temporariamente para testar
-    if (baseUrl || email || token || jql) {
-      configService.setConfig({ baseUrl, email, token, jql });
+    let { baseUrl, email, token, jql } = req.body;
+
+    // Se não forneceu no body, buscar do Supabase
+    if (!baseUrl || !email || !token) {
+      const conn = await configService.getActiveConnection();
+      if (conn) {
+        baseUrl = baseUrl || conn.baseUrl;
+        email   = email   || conn.email;
+        token   = token   || conn.token;
+        jql     = jql     || conn.jql;
+      }
     }
-    
-    const result = await jiraService.testConnection();
-    
+
+    if (!baseUrl || !email || !token) {
+      return res.status(400).json({ success: false, error: 'Credenciais incompletas. Configure na página Dados.' });
+    }
+
+    const result = await testJiraConnection(baseUrl, email, token, jql);
+
     if (result.success) {
-      res.json({
+      return res.json({
         success: true,
         message: 'Conexão estabelecida com sucesso!',
         user: result.user,
-        totalTickets: result.testResult.total
+        testResult: result.testResult
       });
     } else {
-      res.status(401).json({
-        success: false,
-        error: result.error
-      });
+      return res.status(400).json({ success: false, error: result.error });
     }
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
+    console.error('[test-connection] Erro:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-router.get('/sync/status', (req, res) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/sync/status — Status da sincronização
+// ─────────────────────────────────────────────
+router.get('/sync/status', async (req, res) => {
   try {
-    const config = configService.getConfig();
-    res.json({
-      isConfigured: config.isConfigured,
-      hasToken: config.hasToken,
-      lastSync: config.lastSync,
-      lastSyncStatus: config.lastSyncStatus,
-      lastSyncError: config.lastSyncError
+    const conn = await configService.getActiveConnection();
+    const total = await countIssuesInDatabase();
+
+    return res.json({
+      isConfigured: !!conn,
+      hasToken: !!conn,
+      totalIssuesInDb: total,
+      lastSync: null,
+      lastSyncStatus: null,
+      lastSyncError: null
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// ─────────────────────────────────────────────
+// POST /api/jira/sync — Sincroniza Jira → Supabase
+// ─────────────────────────────────────────────
 router.post('/sync', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ 
-        error: 'Jira não configurado. Configure as credenciais primeiro.' 
+    let { baseUrl, email, token, jql } = req.body || {};
+
+    // Buscar credenciais do Supabase se não fornecidas
+    if (!baseUrl || !email || !token) {
+      const conn = await configService.getActiveConnection();
+      if (!conn) {
+        return res.status(400).json({
+          success: false,
+          error: 'Credenciais não configuradas. Acesse a página Dados e configure a conexão com o Jira.'
+        });
+      }
+      baseUrl = baseUrl || conn.baseUrl;
+      email   = email   || conn.email;
+      token   = token   || conn.token;
+      jql     = jql     || conn.jql;
+    }
+
+    // Sanitizar
+    baseUrl = baseUrl.trim().replace(/\/$/, '');
+    email   = email.trim();
+    token   = token.trim();
+    const effectiveJql = jql?.trim() ||
+      'project in (BLCASH, BB, CEP, CTR, CVM175, DTVSLI, ETF, PGINT, SDDS2, SDDSF2, BNPTD, BTA, MAR, P1) AND status is not EMPTY ORDER BY updated DESC';
+
+    console.log('[sync] Iniciando sincronização...');
+
+    // 1) Buscar issues do Jira com paginação
+    const rawIssues = await fetchAllIssuesFromJira(baseUrl, email, token, effectiveJql);
+
+    if (rawIssues.length === 0) {
+      return res.json({
+        success: true,
+        warning: 'Nenhum ticket retornado pelo Jira. Verifique se a JQL está correta.',
+        totalIssues: 0,
+        inserted: 0,
+        updated: 0
       });
     }
 
-    configService.updateSyncStatus('running');
-    
-    const data = await jiraService.fetchAllIssues();
-    
-    configService.updateSyncStatus('success');
-    
-    res.json({
+    // 2) Upsert no Supabase (sem duplicatas)
+    const dbResult = await upsertIssuesToDatabase(rawIssues);
+
+    console.log(`[sync] Concluído. Total: ${dbResult.total} | Novos: ~${dbResult.inserted} | Atualizados: ~${dbResult.updated}`);
+
+    // 3) Retornar resumo
+    return res.json({
       success: true,
-      lastSyncedAt: data.lastSyncedAt,
-      totalIssues: data.totalIssues,
-      totalProjects: data.totalProjects,
-      totalAnalysts: data.totalAnalysts,
-      totalStatuses: data.statuses.length,
-      preview: data.issues.slice(0, 5).map(i => ({
+      lastSyncedAt: new Date().toISOString(),
+      totalIssues: dbResult.total,
+      inserted: dbResult.inserted,
+      updated: dbResult.updated,
+      preview: rawIssues.slice(0, 5).map(i => ({
         key: i.key,
-        title: i.title,
-        project: i.project.key,
-        status: i.status.name,
-        assignee: i.assignee?.name || 'Não atribuído'
+        title: i.fields?.summary,
+        project: i.fields?.project?.key,
+        status: i.fields?.status?.name,
+        assignee: i.fields?.assignee?.displayName || 'Não atribuído'
       }))
     });
   } catch (error) {
-    configService.updateSyncStatus('error', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('[sync] Erro:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-router.get('/dashboard', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/dashboard — Dados agregados do banco
+// ─────────────────────────────────────────────
+router.get('/dashboard', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ 
-        error: 'Jira não configurado. Configure as credenciais na página Dados.' 
+    const total = await countIssuesInDatabase();
+
+    if (total === 0) {
+      return res.json({
+        totalIssues: 0,
+        totalProjects: 0,
+        totalAnalysts: 0,
+        issues: [],
+        projects: [],
+        analysts: [],
+        statuses: [],
+        metrics: {},
+        board: { columns: [] },
+        info: 'Nenhum dado no banco. Clique em "Sincronizar com Jira" para importar os tickets.'
       });
     }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data);
+
+    const issues = await fetchIssuesFromDatabase();
+    const data = buildDashboardData(issues);
+    return res.json(data);
   } catch (error) {
-    next(error);
+    console.error('[dashboard] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/issues', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/issues — Lista issues com filtros (do banco)
+// ─────────────────────────────────────────────
+router.get('/issues', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    const { issues } = data;
-    
-    let filtered = issues;
-    
-    if (req.query.project) {
-      filtered = filtered.filter(i => i.project.key === req.query.project);
-    }
-    if (req.query.status) {
-      filtered = filtered.filter(i => i.status.name === req.query.status);
-    }
-    if (req.query.assignee) {
-      filtered = filtered.filter(i => i.assignee?.id === req.query.assignee);
-    }
-    if (req.query.priority) {
-      filtered = filtered.filter(i => i.priority?.name === req.query.priority);
-    }
-    if (req.query.type) {
-      filtered = filtered.filter(i => i.type.name === req.query.type);
-    }
-    
-    const limit = parseInt(req.query.limit) || 100;
+    const { project, status, assignee, priority, type } = req.query;
+    const issues = await fetchIssuesFromDatabase({ project, status, assignee, priority, type });
+
+    const limit  = Math.min(parseInt(req.query.limit)  || 100, 500);
     const offset = parseInt(req.query.offset) || 0;
-    
-    res.json({
-      total: filtered.length,
-      issues: filtered.slice(offset, offset + limit)
+    const paginated = issues.slice(offset, offset + limit);
+
+    return res.json({
+      total: issues.length,
+      limit,
+      offset,
+      issues: paginated
     });
   } catch (error) {
-    next(error);
+    console.error('[issues] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/projects', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/projects — Projetos do banco
+// ─────────────────────────────────────────────
+router.get('/projects', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data.projects);
+    const issues = await fetchIssuesFromDatabase();
+    if (issues.length === 0) return res.json([]);
+    const data = buildDashboardData(issues);
+    return res.json(data.projects);
   } catch (error) {
-    next(error);
+    console.error('[projects] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/analysts', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/analysts — Analistas do banco
+// ─────────────────────────────────────────────
+router.get('/analysts', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data.analysts);
+    const issues = await fetchIssuesFromDatabase();
+    if (issues.length === 0) return res.json([]);
+    const data = buildDashboardData(issues);
+    return res.json(data.analysts);
   } catch (error) {
-    next(error);
+    console.error('[analysts] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/statuses', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/statuses — Status do banco
+// ─────────────────────────────────────────────
+router.get('/statuses', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data.statuses);
+    const issues = await fetchIssuesFromDatabase();
+    if (issues.length === 0) return res.json([]);
+    const data = buildDashboardData(issues);
+    return res.json(data.statuses);
   } catch (error) {
-    next(error);
+    console.error('[statuses] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/metrics', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/metrics — Métricas do banco
+// ─────────────────────────────────────────────
+router.get('/metrics', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data.metrics);
+    const issues = await fetchIssuesFromDatabase();
+    if (issues.length === 0) return res.json({});
+    const data = buildDashboardData(issues);
+    return res.json(data.metrics);
   } catch (error) {
-    next(error);
+    console.error('[metrics] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/board', async (req, res, next) => {
+// ─────────────────────────────────────────────
+// GET /api/jira/board — Board Kanban do banco
+// ─────────────────────────────────────────────
+router.get('/board', async (req, res) => {
   try {
-    if (!configService.isConfigured()) {
-      return res.status(400).json({ error: 'Jira não configurado' });
-    }
-    
-    const data = await jiraService.fetchAllIssues();
-    res.json(data.board);
+    const issues = await fetchIssuesFromDatabase();
+    if (issues.length === 0) return res.json({ columns: [] });
+    const data = buildDashboardData(issues);
+    return res.json(data.board);
   } catch (error) {
-    next(error);
+    console.error('[board] Erro:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
+// ─────────────────────────────────────────────
+// POST /api/jira/cache/clear — Placeholder (sem cache em memória)
+// ─────────────────────────────────────────────
 router.post('/cache/clear', (req, res) => {
-  try {
-    const result = jiraService.clearCache();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  res.json({ message: 'Cache não utilizado. Dados são lidos diretamente do banco.' });
 });
 
+// ─────────────────────────────────────────────
+// GET /api/jira/cache/stats — Placeholder
+// ─────────────────────────────────────────────
 router.get('/cache/stats', (req, res) => {
-  try {
-    const stats = jiraService.getCacheStats();
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  res.json({ hits: 0, misses: 0, keys: 0, message: 'Dados são lidos diretamente do banco.' });
 });
 
 export default router;

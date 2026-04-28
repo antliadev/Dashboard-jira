@@ -300,6 +300,16 @@ function setupEventListeners() {
       
       try {
         const configData = getFormData();
+        
+        // Debug
+        console.log('[data.js] Salvando config:', JSON.stringify(configData));
+        
+        if (!configData.baseUrl || !configData.email || !configData.token) {
+          alert('Preencha URL, Email e Token obrigatórios!');
+          renderDataContent();
+          return;
+        }
+        
         await dataService.saveConfig(configData);
         config = await dataService.loadConfig();
         syncStatus = await dataService.getSyncStatus();
@@ -310,7 +320,7 @@ function setupEventListeners() {
         alert('Erro ao salvar: ' + error.message);
         renderDataContent();
       }
-});
+  });
   }
 
   // Sincronizar
