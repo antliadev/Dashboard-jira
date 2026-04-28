@@ -184,14 +184,7 @@ function renderDataContent() {
               </div>
             </div>
             
-            <div class="form-group">
-              <label>JQL (Filtro Inteligente)</label>
-              <textarea id="jira-jql" rows="4" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6; opacity: 0.7; background: var(--bg-secondary);" disabled>${sanitize(config?.jql || '')}</textarea>
-              <div style="font-size: 11px; color: var(--warning); margin-top: 6px;">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Filtro padrão fixo para garantir consistência entre instâncias.
-              </div>
-            </div>
+            <input type="hidden" id="jira-jql" value="${sanitize(config?.jql || '')}">
 
             <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
               <button class="btn btn-secondary" id="btn-test-connection" style="flex: 1;">
@@ -243,7 +236,7 @@ function renderDataContent() {
               Sincronização
             </h3>
             <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5;">
-              A sincronização busca todos os tickets do Jira conforme a JQL definida e atualiza a base central no Supabase.
+              A sincronização busca todos os tickets do Jira e atualiza a base central no Supabase para toda a equipe.
             </p>
             
             <button class="btn btn-primary" id="btn-sync-now" style="width: 100%; justify-content: center; padding: 12px;" ${!isConfigured || lastSyncStatus === 'running' ? 'disabled' : ''}>
