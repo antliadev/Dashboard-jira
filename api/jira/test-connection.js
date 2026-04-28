@@ -8,6 +8,10 @@ import { configService } from '../../lib/configService.js';
 import { testJiraConnection } from '../../lib/jiraService.js';
 
 export default async function handler(req, res) {
+  // Suporte a CORS Preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido. Use POST.' });
   }
