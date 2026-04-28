@@ -312,6 +312,7 @@ input, select, textarea { font-family: inherit; }
   height: calc(100vh - 220px);
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  padding-right: 20px; /* Espaço para não colar na borda */
 }
 .kanban-column {
   min-width: 320px; max-width: 320px; background: var(--bg-card); border: 1px solid var(--border);
@@ -991,4 +992,66 @@ input, select, textarea { font-family: inherit; }
   .exec-status-info {
     text-align: center;
   }
+}
+
+/* Audit Section */
+.audit-section {
+  margin-top: 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+.audit-section .section-header { margin-bottom: 24px; }
+.audit-section .section-header h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+
+.audit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.audit-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  transition: all var(--transition);
+}
+.audit-card.audit-warning { border-left: 4px solid var(--warning); }
+.audit-card.audit-warning .audit-icon { color: var(--warning); background: rgba(245,158,11,0.1); }
+.audit-card.audit-ok { border-left: 4px solid var(--success); opacity: 0.8; }
+.audit-card.audit-ok .audit-icon { color: var(--success); background: rgba(16,185,129,0.1); }
+
+.audit-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.audit-info { flex: 1; }
+.audit-count { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.audit-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.audit-tooltip { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.issue-link {
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.issue-link:hover { color: var(--accent-hover); }
+
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
