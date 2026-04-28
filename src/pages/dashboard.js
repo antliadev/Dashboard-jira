@@ -10,15 +10,23 @@ let projectDistributionChart = null;
 
 export function renderDashboard() {
   const header = document.getElementById('page-header');
-  const content = document.getElementById('page-content');
+  const metadata = dataService.getSyncMetadata();
   
   header.innerHTML = `
     <div>
       <h2>Dashboard Executivo</h2>
-      <div class="subtitle">Visão geral de todos os projetos e entregas</div>
+      <div class="subtitle" style="display: flex; align-items: center; gap: 12px;">
+        <span>Visão geral de todos os projetos e entregas</span>
+        <span style="width: 1px; height: 12px; background: var(--border);"></span>
+        <span style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          Atualizado em: ${metadata.lastSyncedAt ? formatDateTime(metadata.lastSyncedAt) : 'Nunca'}
+          ${metadata.lastSyncStatus === 'running' ? '<span style="color: var(--info); animation: pulse 1s infinite;">(Sincronizando...)</span>' : ''}
+        </span>
+      </div>
     </div>
     <div class="page-actions">
-      <select id="global-project-filter" class="btn btn-secondary">
+      <select id="global-project-filter" class="btn btn-secondary" style="min-width: 180px;">
         <option value="">Todos os Projetos</option>
         ${dataService.getProjects().map(p => `<option value="${sanitize(p.id)}">${sanitize(p.name)}</option>`).join('')}
       </select>
