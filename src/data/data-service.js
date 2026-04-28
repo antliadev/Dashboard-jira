@@ -310,6 +310,8 @@ class DataService {
       const issueId     = isFlat ? i.issue_id     : i.id;
       const issueKey    = isFlat ? i.issue_key    : i.key;
 
+      const isInconsistent = !assigneeId || !priorityName || (statusName.toLowerCase().includes('progress') && !assigneeId);
+
       return {
         id: issueId,
         key: issueKey,
@@ -328,7 +330,8 @@ class DataService {
         labels: i.labels || [],
         timeEstimated: 0,
         timeSpent: 0,
-        epicKey: parentKey
+        epicKey: parentKey,
+        isInconsistent
       };
     });
   }
@@ -462,14 +465,16 @@ class DataService {
     const byCategory = { todo: 0, in_progress: 0, done: 0, blocked: 0 };
     const byPriority = { highest: 0, high: 0, medium: 0, low: 0, lowest: 0 };
     let overdue = 0;
+    let inconsistent = 0;
 
     cards.forEach(c => {
       byCategory[resolveStatusCategory(c.status)]++;
       if (byPriority[c.priority] !== undefined) byPriority[c.priority]++;
       if (isCardOverdue(c)) overdue++;
+      if (c.isInconsistent) inconsistent++;
     });
 
-    return { totalProjects: this._projects.length, totalCards: total, byCategory, byPriority, overdue };
+    return { totalProjects: this._projects.length, totalCards: total, byCategory, byPriority, overdue, inconsistent };
   }
 
   getStatusDistributionByProject() {

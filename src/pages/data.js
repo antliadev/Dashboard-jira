@@ -186,9 +186,10 @@ function renderDataContent() {
             
             <div class="form-group">
               <label>JQL (Filtro Inteligente)</label>
-              <textarea id="jira-jql" rows="4" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;" ${!canEdit ? 'readonly' : ''}>${sanitize(config?.jql || '')}</textarea>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
-                Este filtro define quais tickets serão sincronizados para toda a equipe.
+              <textarea id="jira-jql" rows="4" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6; opacity: 0.7; background: var(--bg-secondary);" disabled>${sanitize(config?.jql || '')}</textarea>
+              <div style="font-size: 11px; color: var(--warning); margin-top: 6px;">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Filtro padrão fixo para garantir consistência entre instâncias.
               </div>
             </div>
 
@@ -197,12 +198,6 @@ function renderDataContent() {
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 Validar Acesso
               </button>
-              ${canEdit ? `
-              <button class="btn btn-primary" id="btn-save-config" style="flex: 1;">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Salvar Global
-              </button>
-              ` : ''}
             </div>
           </div>
 
@@ -345,28 +340,47 @@ function setupEventListeners() {
     });
   }
 
-  // Sincronizar
+  // Sincronizar (Salva + Sincroniza)
   document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
-    if (lastSyncStatus === 'running') return;
+    if (syncStatus?.lastSyncStatus === 'running') return;
     
     const btn = document.getElementById('btn-sync-now');
+    const originalContent = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sincronizando...';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Salvando e Sincronizando...';
     
     try {
-      // Iniciar sincronização
+      const configData = getFormData();
+      
+      // 1. Salvar configuração primeiro (se houver email/token preenchidos)
+      if (configData.email && configData.token) {
+        await dataService.saveConfig(configData);
+      } else if (!config?.isConfigured) {
+        alert('Preencha Email e Token para realizar a primeira sincronização!');
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+        return;
+      }
+
+      // 2. Iniciar sincronização
       const result = await dataService.syncFromJira();
+      
+      // 3. Atualizar status local
       syncStatus = await dataService.getSyncStatus();
       
-      alert(`Sincronização global concluída!\n\nTickets: ${result.totalIssues}\nProjetos: ${result.totalProjects}`);
+      // 4. Mostrar sucesso claro
+      alert(`Dados sincronizados para todos!\n\nTickets: ${result.totalIssues}\nProjetos: ${result.totalProjects}`);
       
-      // Recarregar dados para o dashboard
+      // 5. Recarregar dados para o dashboard
       await dataService.loadJiraData();
       renderDataContent();
     } catch (error) {
-      alert('Erro ao sincronizar: ' + error.message);
+      alert('Erro na sincronização: ' + error.message);
       syncStatus = await dataService.getSyncStatus();
       renderDataContent();
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalContent;
     }
   });
 
