@@ -811,6 +811,103 @@
 }
 
 /* =========================================
+   FAROL DO PROJETO
+   ========================================= */
+
+.farol-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 24px;
+  background: linear-gradient(180deg, #111827 0%, #0F172A 100%);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-left: 5px solid;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+  min-width: 0;
+}
+
+.farol-card:hover {
+  transform: translateY(-2px);
+}
+
+.farol-indicator {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: farolPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes farolPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.farol-emoji {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.farol-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.farol-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.farol-status {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+}
+
+.farol-subtitle {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 2px;
+}
+
+.farol-details {
+  display: flex;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.farol-detail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.farol-detail-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #F9FAFB;
+  line-height: 1;
+}
+
+.farol-detail-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* =========================================
    RESPONSIVE
    ========================================= */
 
@@ -840,5 +937,15 @@
   
   .executive-kpis-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .farol-card {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .farol-details {
+    justify-content: center;
   }
 }

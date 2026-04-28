@@ -196,7 +196,7 @@ function renderExecutiveContent(projectKey) {
     return;
   }
 
-  const { project, healthStatus, healthLabel, progressPercent, totals, team, risks, achievements, nextSteps, lastSync } = summary;
+  const { project, healthStatus, healthLabel, progressPercent, totals, team, risks, achievements, nextSteps, lastSync, farol } = summary;
 
   // Cores do semáforo
   const healthColors = {
@@ -206,6 +206,11 @@ function renderExecutiveContent(projectKey) {
   };
   
   const health = healthColors[healthStatus];
+
+  // Cores do farol (pode ser diferente do healthStatus)
+  const farolEmoji = { green: '🟢', yellow: '🟡', red: '🔴' };
+  const farolColors = healthColors[farol?.cor || 'green'];
+  const farolDataRef = farol?.dataReferencia ? new Date(farol.dataReferencia).toLocaleDateString('pt-BR') : '';
 
   // Calcular percentuais das barras
   const donePercent = totals.issues > 0 ? Math.round((totals.done / totals.issues) * 100) : 0;
@@ -251,6 +256,34 @@ function renderExecutiveContent(projectKey) {
 
         <!-- WRAPPER PARA EXPORTAÇÃO -->
         <div id="executive-export-area" style="padding: 16px 0;">
+
+        ${farol ? `
+        <!-- FAROL DO PROJETO (Destaque antes do grid) -->
+        <div class="farol-card" style="border-color: ${farolColors.bg}; box-shadow: 0 4px 20px ${farolColors.glow}">
+          <div class="farol-indicator" style="background: ${farolColors.light}; border: 2px solid ${farolColors.bg}">
+            <span class="farol-emoji">${farolEmoji[farol.cor]}</span>
+          </div>
+          <div class="farol-info">
+            <div class="farol-title">Farol do Projeto</div>
+            <div class="farol-status" style="color: ${farolColors.bg}">${farol.label}</div>
+            <div class="farol-subtitle">Baseado nos tickets com data limite até ${farolDataRef}</div>
+          </div>
+          <div class="farol-details">
+            <div class="farol-detail-item">
+              <span class="farol-detail-value">${farol.deveriaConcluido}</span>
+              <span class="farol-detail-label">Planejado</span>
+            </div>
+            <div class="farol-detail-item">
+              <span class="farol-detail-value">${farol.realmenteConcluido}</span>
+              <span class="farol-detail-label">Concluído</span>
+            </div>
+            <div class="farol-detail-item">
+              <span class="farol-detail-value">${farol.diferencaPercentual}%</span>
+              <span class="farol-detail-label">Diferença</span>
+            </div>
+          </div>
+        </div>
+        ` : ''}
         
         <!-- GRID PRINCIPAL: 2 COLUNAS -->
         <div class="executive-grid">
