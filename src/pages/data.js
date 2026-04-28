@@ -40,10 +40,28 @@ function startStatusPolling() {
           newStatus.lastSync !== syncStatus?.lastSync) {
         syncStatus = newStatus;
         
+        // Atualizar logs no terminal se houver mudança relevante
+        const log = (msg, color = '#888') => {
+          const term = document.getElementById('terminal-log');
+          if (term) {
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            term.appendChild(div);
+            term.scrollTop = term.scrollHeight;
+          }
+        };
+
+        if (newStatus.lastSyncStatus === 'success') {
+          log('EVENTO: Sincronização finalizada com sucesso no servidor.', '#00ff00');
+        } else if (newStatus.lastSyncStatus === 'error') {
+          log(`ERRO: Falha detectada no servidor: ${newStatus.lastSyncError || 'Desconhecido'}`, '#ef4444');
+        }
+
         // Só atualiza o conteúdo se estivermos na página de dados
         if (window.location.hash.startsWith('#/data')) {
            // Se a sincronização acabou de terminar e foi sucesso, recarregamos dados do dashboard em background
-           if (newStatus.lastSyncStatus === 'success' && !newStatus.isConfigured) {
+           if (newStatus.lastSyncStatus === 'success') {
              await dataService.loadJiraData();
            }
            renderDataContent();
@@ -255,12 +273,11 @@ function renderDataContent() {
               <h3 style="margin: 0; font-family: monospace; color: #00ff00; font-size: 13px;">Terminal.log</h3>
               <span style="width: 8px; height: 8px; border-radius: 50%; background: #00ff00; box-shadow: 0 0 5px #00ff00;"></span>
             </div>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #888; height: 180px; overflow-y: auto; line-height: 1.6;">
-              <div>[${new Date().toLocaleTimeString()}] Iniciando monitoramento...</div>
+            <div id="terminal-log" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #888; height: 180px; overflow-y: auto; line-height: 1.6;">
+              <div>[${new Date().toLocaleTimeString()}] Sistema de monitoramento ativo.</div>
               ${lastSync ? `<div>[${new Date(lastSync).toLocaleTimeString()}] Último evento: ${lastSyncStatus === 'success' ? 'SYNC_COMPLETE' : 'SYNC_FAILED'}</div>` : ''}
-              ${lastSyncStatus === 'running' ? '<div style="color: #00ff00;">[SYNC] Buscando tickets do Jira (paginação ativa)...</div>' : ''}
+              ${lastSyncStatus === 'running' ? '<div style="color: #00ff00;">[SYNC] Sincronização em andamento no servidor...</div>' : ''}
               <div>[DATABASE] Conectado ao Supabase Cluster.</div>
-              <div>[AUTH] Credenciais validadas via AES-256.</div>
               <div style="color: #555;">> Aguardando comando...</div>
             </div>
           </div>
@@ -339,15 +356,30 @@ function setupEventListeners() {
     
     const btn = document.getElementById('btn-sync-now');
     const originalContent = btn.innerHTML;
+    const log = (msg, color = '#888') => {
+      const term = document.getElementById('terminal-log');
+      if (term) {
+        const div = document.createElement('div');
+        div.style.color = color;
+        div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        term.appendChild(div);
+        term.scrollTop = term.scrollHeight;
+      }
+    };
+
     btn.disabled = true;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Salvando e Sincronizando...';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sincronizando...';
+    
+    log('Iniciando processo de sincronização global...', '#00ff00');
     
     try {
       const configData = getFormData();
       
       // 1. Salvar configuração primeiro (se houver email/token preenchidos)
       if (configData.email && configData.token) {
+        log('Salvando credenciais no Supabase...');
         await dataService.saveConfig(configData);
+        log('Credenciais salvas com sucesso.');
       } else if (!config?.isConfigured) {
         alert('Preencha Email e Token para realizar a primeira sincronização!');
         btn.disabled = false;
@@ -355,8 +387,18 @@ function setupEventListeners() {
         return;
       }
 
-      // 2. Iniciar sincronização
-      const result = await dataService.syncFromJira();
+      // 2. Iniciar sincronização com timeout de segurança
+      log('Solicitando carga de dados ao Jira (isso pode levar até 60s)...', '#00ff00');
+      
+      // Criamos uma promessa com timeout para não travar a UI
+      const syncPromise = dataService.syncFromJira();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Tempo limite excedido. A sincronização continuará rodando no servidor.')), 55000)
+      );
+
+      const result = await Promise.race([syncPromise, timeoutPromise]);
+      
+      log(`Sincronização concluída: ${result.totalIssues} tickets processados.`, '#00ff00');
       
       // 3. Atualizar status local
       syncStatus = await dataService.getSyncStatus();
@@ -365,10 +407,18 @@ function setupEventListeners() {
       alert(`Dados sincronizados para todos!\n\nTickets: ${result.totalIssues}\nProjetos: ${result.totalProjects}`);
       
       // 5. Recarregar dados para o dashboard
+      log('Recarregando cache local...');
       await dataService.loadJiraData();
       renderDataContent();
     } catch (error) {
-      alert('Erro na sincronização: ' + error.message);
+      log(`AVISO: ${error.message}`, error.message.includes('Tempo limite') ? '#facc15' : '#ef4444');
+      
+      if (error.message.includes('Tempo limite')) {
+        alert('A sincronização está demorando mais que o esperado, mas continua processando no servidor.\n\nVocê pode aguardar o status mudar no card acima ou fechar esta página.');
+      } else {
+        alert('Erro na sincronização: ' + error.message);
+      }
+      
       syncStatus = await dataService.getSyncStatus();
       renderDataContent();
     } finally {
