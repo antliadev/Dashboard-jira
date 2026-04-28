@@ -137,11 +137,19 @@ function renderBoardContent() {
             ${col.issues.length === 0 ? `
               <div class="kanban-empty">Nenhum item</div>
             ` : col.issues.map(issue => `
-              <div class="kanban-card" draggable="true" data-id="${sanitize(issue.id)}">
-                <div class="kanban-card-header">
-                  <span class="kanban-card-key">${sanitize(issue.key)}</span>
-                  ${issue.priority ? `<span class="kanban-card-priority priority-${sanitize(issue.priority.name.toLowerCase())}">${sanitize(issue.priority.name)}</span>` : ''}
-                </div>
+                ${(() => {
+                  const isInconsistent = !issue.assignee || !issue.priority || (issue.status.name.toLowerCase().includes('progress') && !issue.assignee);
+                  return `
+                  <div class="kanban-card ${isInconsistent ? 'kanban-card-error' : ''}" draggable="true" data-id="${sanitize(issue.id)}">
+                    ${isInconsistent ? `
+                      <div style="position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; border: 2px solid var(--bg-card); z-index: 5;" title="Dados Inconsistentes">!</div>
+                    ` : ''}
+                    <div class="kanban-card-header">
+                      <span class="kanban-card-key">${sanitize(issue.key)}</span>
+                      ${issue.priority ? `<span class="kanban-card-priority priority-${sanitize(issue.priority.name.toLowerCase())}">${sanitize(issue.priority.name)}</span>` : ''}
+                    </div>
+                  `;
+                })()}
                 <div class="kanban-card-title">${sanitize(issue.title)}</div>
                 <div class="kanban-card-footer">
                   <div class="kanban-card-project">
