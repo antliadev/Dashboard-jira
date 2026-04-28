@@ -144,7 +144,14 @@ function renderDataContent() {
           </div>
           <div style="margin-top: 4px;">
             ${lastSyncStatus === 'running' 
-              ? '<span class="badge badge-progress" style="animation: pulse-badge 1.5s infinite;">Sincronizando agora...</span>' 
+              ? `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="badge badge-progress" style="animation: pulse-badge 1.5s infinite;">Sincronizando agora...</span>
+                  <button id="btn-force-reset" title="Forçar interrupção se estiver travado" style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 2px; display: flex; align-items: center; opacity: 0.7;">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  </button>
+                </div>
+              `
               : lastSyncStatus === 'error'
                 ? `<span class="badge badge-blocked" title="${sanitize(lastSyncError || '')}">Erro na última carga</span>`
                 : '<span class="badge badge-done">Dados atualizados</span>'
@@ -437,6 +444,19 @@ function setupEventListeners() {
       renderDataContent();
     } catch (error) {
       alert('Erro ao limpar cache: ' + error.message);
+    }
+  // Forçar reset de sincronização
+  document.getElementById('btn-force-reset')?.addEventListener('click', async () => {
+    if (!confirm('Deseja interromper o status de sincronização? Use apenas se achar que o processo travou.')) return;
+    
+    try {
+      // Chamamos uma API para limpar o cache/status
+      await dataService.clearCache();
+      syncStatus = await dataService.getSyncStatus();
+      alert('Status de sincronização resetado com sucesso.');
+      renderDataContent();
+    } catch (error) {
+      alert('Erro ao resetar: ' + error.message);
     }
   });
 }
