@@ -788,6 +788,58 @@ class DataService {
     const predominantPriority = Object.entries(priorityCounts)
       .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
+    // ═══════════════════════════════════════════════
+    // FAROL DO PROJETO — Planejamento vs Execução
+    // Referência: D-1 (ontem), calculado dinamicamente
+    // ═══════════════════════════════════════════════
+    const now = new Date();
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    yesterday.setHours(23, 59, 59, 999); // Fim do dia de ontem
+
+    let deveriaConcluido = 0;
+    let realmenteConcluido = 0;
+
+    projectIssues.forEach(issue => {
+      // O campo dueDate pode vir tanto do formato flat (due_date) quanto aninhado (dueDate)
+      const dueDate = issue.dueDate || issue.due_date || null;
+      if (!dueDate) return;
+
+      const dueDateParsed = new Date(dueDate);
+      if (isNaN(dueDateParsed.getTime())) return; // Data inválida — ignorar
+
+      if (dueDateParsed <= yesterday) {
+        deveriaConcluido++;
+        if (this.isDoneStatus(issue.status?.name || issue.status_name || issue.status || '')) {
+          realmenteConcluido++;
+        }
+      }
+    });
+
+    let diferencaPercentual = 0;
+    if (deveriaConcluido > 0) {
+      const percentualExecucao = (realmenteConcluido / deveriaConcluido) * 100;
+      diferencaPercentual = Math.max(0, Math.round((100 - percentualExecucao) * 100) / 100);
+    }
+
+    let farolCor = 'green';
+    let farolLabel = 'Verde';
+    if (diferencaPercentual > 3) {
+      farolCor = 'red';
+      farolLabel = 'Vermelho';
+    } else if (diferencaPercentual > 1) {
+      farolCor = 'yellow';
+      farolLabel = 'Amarelo';
+    }
+
+    const farol = {
+      cor: farolCor,
+      label: farolLabel,
+      deveriaConcluido,
+      realmenteConcluido,
+      diferencaPercentual,
+      dataReferencia: yesterday.toISOString()
+    };
+
     // Insights textuais
     const insights = [
       `O projeto possui ${totals.issues} tickets, sendo ${totals.done} concluídos, ${totals.inProgress} em andamento e ${totals.blocked} bloqueados.`
@@ -825,7 +877,8 @@ class DataService {
       nextSteps,
       insights,
       lastSync: rawData.lastSyncedAt,
-      predominantPriority
+      predominantPriority,
+      farol
     };
   }
 
