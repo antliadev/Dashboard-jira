@@ -558,14 +558,35 @@ class DataService {
   }
 
   /**
-   * Verifica se um status é considerado "concluído"
+   * Retorna metadados da última sincronização.
+   * Consolida informações de sync de múltiplas fontes.
+   */
+  getSyncMetadata() {
+    return {
+      lastSyncedAt: this._lastSync || this._rawJiraData?.lastSyncedAt || null,
+      lastSyncStatus: this._rawJiraData?.lastSyncStatus || null
+    };
+  }
+
+  /**
+   * Remove diacríticos (acentos) de uma string para comparação normalizada.
+   * @param {string} str - Texto com possíveis acentos
+   * @returns {string} Texto sem acentos, em lowercase
+   */
+  _stripDiacritics(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  /**
+   * Verifica se um status é considerado "concluído".
+   * Normaliza acentos para cobrir variações como 'concluído' e 'concluido'.
    */
   isDoneStatus(statusName) {
     if (!statusName) return false;
-    const name = statusName.toLowerCase();
+    const name = this._stripDiacritics(statusName.toLowerCase());
     return (
       name.includes('done') ||
-      name.includes('concluído') ||
+      name.includes('concluido') ||
       name.includes('finalizado') ||
       name.includes('closed') ||
       name.includes('resolved')
@@ -809,7 +830,9 @@ class DataService {
 
       if (dueDateParsed <= yesterday) {
         deveriaConcluido++;
-        if (this.isDoneStatus(issue.status?.name || issue.status_name || issue.status || '')) {
+        // Extrair nome do status de forma segura — issue.status pode ser objeto ou string
+        const statusName = typeof issue.status === 'object' ? issue.status?.name : (issue.status_name || issue.status || '');
+        if (this.isDoneStatus(statusName)) {
           realmenteConcluido++;
         }
       }
