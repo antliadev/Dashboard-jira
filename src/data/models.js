@@ -62,12 +62,14 @@ export const DEFAULT_STATUS_MAP = {
   'em desenvolvimento': StatusCategory.IN_PROGRESS,
   'in review': StatusCategory.IN_PROGRESS,
   'em revisão': StatusCategory.IN_PROGRESS,
+  'em revisao': StatusCategory.IN_PROGRESS,
   'code review': StatusCategory.IN_PROGRESS,
   'testing': StatusCategory.IN_PROGRESS,
   'em teste': StatusCategory.IN_PROGRESS,
   'qa': StatusCategory.IN_PROGRESS,
   'done': StatusCategory.DONE,
   'concluído': StatusCategory.DONE,
+  'concluido': StatusCategory.DONE,
   'closed': StatusCategory.DONE,
   'finalizado': StatusCategory.DONE,
   'resolved': StatusCategory.DONE,
@@ -193,13 +195,23 @@ export function resolveStatusCategory(status, customMap = {}) {
 }
 
 /**
- * Verifica se um card está atrasado
+ * Verifica se um card está atrasado.
+ * Normaliza datas para início do dia UTC para evitar erros de timezone.
  */
 export function isCardOverdue(card) {
   if (!card.dueDate) return false;
   const category = resolveStatusCategory(card.status);
   if (category === StatusCategory.DONE) return false;
-  return new Date(card.dueDate) < new Date();
+  
+  // Normalizar para startOfDay UTC — evita que timezone do browser mude o dia
+  const due = new Date(card.dueDate);
+  if (isNaN(due.getTime())) return false;
+  const dueDay = new Date(Date.UTC(due.getFullYear(), due.getMonth(), due.getDate()));
+  
+  const now = new Date();
+  const todayDay = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  
+  return dueDay < todayDay;
 }
 
 /**
