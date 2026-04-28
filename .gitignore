@@ -35,3 +35,5 @@ update-connection-token.js
 *.njsproj
 *.sln
 *.sw?
+
+.vercel

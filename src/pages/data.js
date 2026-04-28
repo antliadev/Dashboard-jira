@@ -137,7 +137,7 @@ function renderDataContent() {
           <div class="alert-item ${testResult.success ? '' : 'warning'}" style="margin-bottom: 16px;">
             <div class="alert-text">
               ${testResult.success 
-                ? `<strong>✓ Conexão OK!</strong> Usuário: ${sanitize(testResult.user?.displayName || '')} (${sanitize(testResult.user?.email || '')}). Tickets encontrados: ${testResult.totalTickets}`
+                ? `<strong>✓ Conexão OK!</strong> Usuário: ${sanitize(testResult.user?.displayName || '')} (${sanitize(testResult.user?.email || '')}). Tickets encontrados: ${testResult.testResult?.totalTickets ?? 'N/A'}`
                 : `<strong>✗ Erro:</strong> ${sanitize(testResult.error || '')}`
               }
             </div>
