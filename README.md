@@ -1,116 +1,88 @@
-# Jira Dashboard
+# 🚀 Jira Dashboard - Antlia Dev
 
-Painel de gestão de projetos Jira com visualização executiva, board Kanban e métricas.
+Painel corporativo de alto nível para gestão estratégica de projetos Jira. Uma solução robusta, escalável e segura para monitoramento de performance, visualização de cards Kanban e auditoria automatizada de integridade de dados.
 
-##快速开始
+---
+
+## 🌟 Diferenciais do Projeto
+
+*   **Visão Executiva**: Dashboards dinâmicos com métricas reais de progresso e prazos.
+*   **Auditoria de Saúde (Data Health)**: Sistema inteligente que detecta tickets sem analistas, sem prazos ou sem prioridade, garantindo a qualidade da gestão.
+*   **Segurança Enterprise**: Credenciais do Jira são criptografadas (AES-256-CBC) e armazenadas de forma segura no Supabase.
+*   **Sincronização Global**: Um único clique sincroniza os dados para toda a equipe simultaneamente via Backend Serverless.
+*   **Watchdog de Estabilidade**: Sistema de auto-recuperação para processos de sincronização interrompidos ou travados.
+
+---
+
+## 🛠️ Stack Tecnológica
+
+### Frontend
+*   **Vanilla JavaScript**: Máxima performance e zero overhead.
+*   **Chart.js**: Visualizações de dados fluidas e interativas.
+*   **CSS Moderno**: Design system baseado em variáveis (Navy/Teal) com suporte a responsividade total.
+
+### Backend & Infra
+*   **Node.js / Express**: Camada de API robusta.
+*   **Supabase**: Single Source of Truth (Banco de Dados, RLS e Auth).
+*   **Vercel Edge/Serverless**: Escalabilidade e deploy automatizado.
+*   **Jira REST API v3**: Integração oficial e estável.
+
+---
+
+## 🚦 Guia de Início Rápido
 
 ### Pré-requisitos
-- Node.js 18+
-- npm ou yarn
+*   Node.js 18+
+*   Conta no Supabase (com tabela `jira_connections` e `jira_sync_status` criadas)
+*   Token de API do Jira
 
-### Instalação
+### Instalação e Execução Local
+1.  **Instalar dependências**:
+    ```bash
+    npm install
+    ```
+2.  **Configurar variáveis**:
+    Copie o `.env.example` para `.env` e preencha as chaves do Supabase.
+3.  **Iniciar**:
+    ```bash
+    npm run dev:all
+    ```
+    *   Frontend: `http://localhost:5173`
+    *   Backend: `http://localhost:3001`
 
-```bash
-npm install
-```
+---
 
-### Executar
+## 📑 Módulos Principais
 
-**Modo desenvolvimento (ambos servers):**
-```bash
-npm run dev:all
-```
+### 1. Dashboard Estratégico
+Visão consolidada de todos os projetos sob gestão. Inclui gráficos de distribuição por status, analistas mais carregados e a **Seção de Auditoria de Saúde**, que lista proativamente falhas de preenchimento no Jira.
 
-Ou execute o script:
-```bash
-start-dev.bat
-```
+### 2. Kanban Dinâmico
+Board interativo com scroll horizontal por colunas e vertical por cards. Permite acesso rápido ao ticket original no Jira e visualização imediata de prioridades e analistas.
 
-**Servidor backend (porta 3001):**
-```bash
-npm run dev:server
-```
+### 3. Gestão de Dados (Sync)
+Central de configuração onde as credenciais são gerenciadas.
+*   **Sincronizar Global**: Inicia o processo de busca de dados no Jira e persiste no Supabase para que todos os usuários vejam a mesma informação.
+*   **Reset de Sync**: Caso uma sincronização seja interrompida por falha de rede ou timeout, o sistema permite o reset manual do estado.
 
-**Servidor frontend (porta 5173):**
-```bash
-npm run dev
-```
+---
 
-### Acesso
+## 🔐 Segurança e Boas Práticas
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001/api/jira
-- Health: http://localhost:3001/health
+*   **Criptografia**: Os `api_tokens` do Jira são salvos no banco de dados após passarem por uma camada de criptografia no servidor. Eles nunca trafegam em texto puro no frontend.
+*   **Read-Only JQL**: O filtro de busca de projetos é definido a nível de sistema para garantir que apenas os projetos pertinentes à operação sejam monitorados.
+*   **Zero Placeholders**: Todos os dados exibidos são reais e provenientes da integração ativa.
 
-## Configuração
+---
 
-1. Acesse a página **Dados** no menu lateral
-2. Preencha as credenciais do Jira:
-   - **Base URL**: https://suaempresa.atlassian.net
-   - **Email**: seu-email@empresa.com
-   - **API Token**: Gere em https://id.atlassian.com/manage-profile/security/api-tokens
-3. Clique em **Testar Conexão**
-4. Clique em **Salvar Configuração**
-5. Clique em **Sincronizar Agora**
+## 🚀 Guia de Operação
 
-## Endpoints da API
+1.  Acesse a página **Dados**.
+2.  Valide o acesso para garantir que as credenciais estão corretas.
+3.  Clique em **Sincronizar Global**.
+4.  Aguarde o status "Sincronizado" (todos os usuários verão a atualização em tempo real).
+5.  Acesse o **Dashboard** para analisar as métricas e corrigir inconsistências listadas na auditoria.
 
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| GET | `/api/jira` | Lista todos os endpoints |
-| GET | `/api/jira/config` | Retorna configuração atual |
-| POST | `/api/jira/config` | Salva configuração |
-| POST | `/api/jira/test-connection` | Testa conexão |
-| GET | `/api/jira/sync/status` | Status da sincronização |
-| POST | `/api/jira/sync` | Sincroniza dados |
-| GET | `/api/jira/dashboard` | Dados do dashboard |
-| GET | `/api/jira/issues` | Lista de tickets |
-| GET | `/api/jira/projects` | Lista de projetos |
-| GET | `/api/jira/analysts` | Lista de analistas |
-| GET | `/api/jira/statuses` | Lista de status |
-| GET | `/api/jira/metrics` | Métricas |
-| GET | `/api/jira/board` | Board Kanban |
-| POST | `/api/jira/cache/clear` | Limpa cache |
-| GET | `/api/jira/cache/stats` | Status do cache |
+---
 
-## Estrutura do Projeto
-
-```
-dashboard-jira/
-├── server/
-│   ├── index.js           # Servidor Express
-│   ├── routes/
-│   │   └── jira.js        # Rotas da API
-│   └── services/
-│       ├── jiraService.js   # Integração Jira
-│       └── configService.js # Gerenciamento config
-├── src/
-│   ├── pages/             # Páginas do frontend
-│   ├── components/        # Componentes reutilizáveis
-│   ├── data/              # Serviços de dados
-│   ├── styles/            # CSS
-│   └── utils/             # Utilitários
-├── vite.config.js         # Configuração Vite
-└── package.json
-```
-
-## JQL Utilizada
-
-```sql
-project in (BLCASH, BB, CEP, CTR, CVM175, DTVSLI, ETF, PGINT, SDDS2, SDDSF2, BNPTD, BTA, MAR, P1)
-AND status is not EMPTY
-ORDER BY project ASC, status ASC, assignee ASC, updated DESC
-```
-
-## Segurança
-
-- Token API nunca é exposto no frontend
-- Token armazenado apenas em memória no backend
-- Configurações sensíveis em arquivo separado (não versionado)
-- Proxy Vite para evitar CORS
-
-## Tech Stack
-
-- **Frontend**: Vanilla JS, Chart.js, Vite
-- **Backend**: Node.js, Express, Node-Cache
-- **API**: Jira REST API v3
+**Desenvolvido com excelência técnica pela equipe Antlia Dev.**
