@@ -306,11 +306,16 @@ class DataService {
       const createdAt   = isFlat ? i.jira_created_at : i.createdAt;
       const updatedAt   = isFlat ? i.jira_updated_at : i.updatedAt;
       const resolvedAt  = isFlat ? i.jira_resolved_at : i.resolvedAt;
+      const dueDate     = isFlat ? i.due_date : i.dueDate;
       const parentKey   = isFlat ? i.parent_key   : i.parent?.key || null;
       const issueId     = isFlat ? i.issue_id     : i.id;
       const issueKey    = isFlat ? i.issue_key    : i.key;
 
-      const isInconsistent = !assigneeId || !priorityName || (statusName.toLowerCase().includes('progress') && !assigneeId);
+      const isInconsistent = !assigneeId || 
+                             !priorityName || 
+                             !dueDate || 
+                             (statusName.toLowerCase().includes('progress') && !assigneeId) ||
+                             statusName === 'Unknown';
 
       return {
         id: issueId,
@@ -324,7 +329,8 @@ class DataService {
         type: this.mapIssueType(typeName),
         createdAt,
         updatedAt,
-        dueDate: resolvedAt,
+        resolvedAt,
+        dueDate,
         sprint: null,
         storyPoints: 0,
         labels: i.labels || [],
@@ -474,7 +480,30 @@ class DataService {
       if (c.isInconsistent) inconsistent++;
     });
 
-    return { totalProjects: this._projects.length, totalCards: total, byCategory, byPriority, overdue, inconsistent };
+    return { 
+      totalProjects: this._projects.length, 
+      totalCards: total, 
+      byCategory, 
+      byPriority, 
+      overdue, 
+      inconsistent,
+      inconsistentTickets: cards.filter(c => c.isInconsistent)
+    };
+  }
+
+  /**
+   * Retorna resumo de tickets com problemas para auditoria
+   */
+  getDataHealthSummary(projectId = null) {
+    const cards = projectId ? this.getCardsByProject(projectId) : [...this._cards];
+    
+    return {
+      noAssignee: cards.filter(c => !c.assigneeId || c.assigneeId === 'unassigned'),
+      noPriority: cards.filter(c => !c.priority || c.priority === 'medium' && !this._rawJiraData?.issues?.find(i => i.issue_id === c.id || i.id === c.id)?.priority_name), // Se caiu no default medium sem ter no jira
+      noDueDate: cards.filter(c => !c.dueDate),
+      stuckInProgress: cards.filter(c => c.status.toLowerCase().includes('progress') && (!c.assigneeId || c.assigneeId === 'unassigned')),
+      unknownStatus: cards.filter(c => c.status === 'Unknown' || resolveStatusCategory(c.status) === StatusCategory.TODO && c.status.toLowerCase().includes('unknown'))
+    };
   }
 
   getStatusDistributionByProject() {

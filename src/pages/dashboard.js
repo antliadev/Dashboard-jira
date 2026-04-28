@@ -2,7 +2,7 @@
  * dashboard.js — Página principal de visão executiva
  */
 import { dataService } from '../data/data-service.js';
-import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize } from '../utils/helpers.js';
+import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate } from '../utils/helpers.js';
 import Chart from 'chart.js/auto';
 
 let dashboardChart = null;
@@ -149,9 +149,102 @@ function renderDashboardContent(projectId = null) {
         </div>
       </div>
     </div>
+    
+    <div class="audit-section">
+      <div class="section-header">
+        <h3>Auditoria de Saúde dos Dados</h3>
+        <p class="subtitle">Identificação de tickets com informações incompletas no Jira</p>
+      </div>
+      
+      <div class="audit-grid">
+        ${renderAuditCard('Sem Analista', dataService.getDataHealthSummary(projectId).noAssignee, 'crítico para medir carga de trabalho')}
+        ${renderAuditCard('Sem Prioridade', dataService.getDataHealthSummary(projectId).noPriority, 'afeta a ordenação e foco')}
+        ${renderAuditCard('Sem Data Entrega', dataService.getDataHealthSummary(projectId).noDueDate, 'impede previsão de entrega')}
+        ${renderAuditCard('Em Progresso Sem Dono', dataService.getDataHealthSummary(projectId).stuckInProgress, 'tickets que podem estar parados')}
+      </div>
+
+      <div class="table-container" style="margin-top: 20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ticket</th>
+              <th>Resumo</th>
+              <th>Problema Identificado</th>
+              <th>Analista</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderInconsistentTableRows(projectId)}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
 
   initCharts(projectId);
+}
+
+function renderAuditCard(title, list, tooltip) {
+  const count = list.length;
+  const isOk = count === 0;
+  return `
+    <div class="audit-card ${isOk ? 'audit-ok' : 'audit-warning'}">
+      <div class="audit-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          ${isOk ? '<path d="M20 6L9 17l-5-5"/>' : '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'}
+        </svg>
+      </div>
+      <div class="audit-info">
+        <div class="audit-count">${count}</div>
+        <div class="audit-label">${title}</div>
+        <div class="audit-tooltip" title="${tooltip}">${tooltip}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderInconsistentTableRows(projectId) {
+  const summary = dataService.getDataHealthSummary(projectId);
+  const allInconsistent = new Set([
+    ...summary.noAssignee,
+    ...summary.noPriority,
+    ...summary.noDueDate,
+    ...summary.stuckInProgress,
+    ...summary.unknownStatus
+  ]);
+
+  if (allInconsistent.size === 0) {
+    return '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">Parabéns! Todos os tickets estão com dados consistentes.</td></tr>';
+  }
+
+  return Array.from(allInconsistent).map(c => {
+    const problems = [];
+    if (!c.assigneeId || c.assigneeId === 'unassigned') problems.push('Sem analista');
+    if (summary.noPriority.includes(c)) problems.push('Sem prioridade');
+    if (!c.dueDate) problems.push('Sem data de entrega');
+    if (c.status.toLowerCase().includes('progress') && (!c.assigneeId || c.assigneeId === 'unassigned')) problems.push('Em progresso sem dono');
+    if (c.status === 'Unknown') problems.push('Status desconhecido');
+
+    const config = dataService.config;
+    const jiraUrl = config?.baseUrl ? `${config.baseUrl}/browse/${c.key}` : '#';
+
+    return `
+      <tr>
+        <td><a href="${jiraUrl}" target="_blank" class="issue-link">${sanitize(c.key)}</a></td>
+        <td><div class="text-truncate" style="max-width: 300px;">${sanitize(c.title)}</div></td>
+        <td>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${problems.map(p => `<span class="badge badge-blocked" style="font-size: 10px;">${p}</span>`).join('')}
+          </div>
+        </td>
+        <td>${sanitize(dataService.getUserById(c.assigneeId)?.displayName || 'Não atribuído')}</td>
+        <td>
+          <a href="${jiraUrl}" target="_blank" class="btn btn-secondary btn-sm">Corrigir no Jira</a>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function initCharts(projectId) {
