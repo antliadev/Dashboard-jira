@@ -61,11 +61,15 @@ async function initApp() {
     
     const syncStatus = await dataService.getSyncStatus();
     
-    // Se já está configurado e tem última sincronização bem-sucedida, carrega os dados
-    if (syncStatus.isConfigured && syncStatus.lastSyncStatus === 'success') {
-      await dataService.loadJiraData();
-      console.log('Jira Dashboard conectado ao Jira Cloud com sucesso.');
-    } else if (!syncStatus.isConfigured) {
+    // Sempre tenta carregar dados se estiver configurado, independente do status da última sincronização
+    if (syncStatus.isConfigured) {
+      try {
+        await dataService.loadJiraData();
+        console.log('Jira Dashboard: Dados carregados com sucesso.');
+      } catch (err) {
+        console.warn('Jira Dashboard: Falha ao carregar dados existentes:', err.message);
+      }
+    } else {
       console.log('Jira não configurado. Use a página Dados para configurar.');
     }
   } catch (error) {
