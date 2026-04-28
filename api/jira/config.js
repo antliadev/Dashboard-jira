@@ -2,6 +2,11 @@ import { configService } from '../../lib/configService.js';
 import { isConfigured } from '../../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
+  // Suporte a CORS Preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   // GET - retorna configuração
   if (req.method === 'GET') {
     try {
