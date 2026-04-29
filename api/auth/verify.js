@@ -9,7 +9,6 @@
  */
 
 import { configService } from '../../lib/configService.js';
-import { isConfigured, supabase } from '../../lib/supabaseServer.js';
 
 /**
  * Verifica se a requisição tem acesso aos dados do Jira
@@ -18,9 +17,20 @@ import { isConfigured, supabase } from '../../lib/supabaseServer.js';
  * - false: acesso bloqueado (resposta já enviada)
  */
 export async function verifyAuth(req, res) {
+  // Import dinâmico para evitar erros se variáveis de ambiente não estiverem disponíveis
+  let isConfigured = false;
+  let supabase = null;
+  
+  try {
+    const supabaseModule = await import('../../lib/supabaseServer.js');
+    isConfigured = supabaseModule.isConfigured;
+    supabase = supabaseModule.supabase;
+  } catch (e) {
+    // Se falhar o import, permitir acesso
+    return true;
+  }
+
   // Se Supabase não está configurado, permitir acesso temporariamente
-  // Isso permite que a página de dados funcione para configurar credenciais
-  // sem necessidade de variáveis de ambiente configuradas no Vercel
   if (!isConfigured || !supabase) {
     return true;
   }
