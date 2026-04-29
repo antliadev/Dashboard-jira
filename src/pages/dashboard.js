@@ -24,6 +24,12 @@ let dashboardFilters = {
   showNoAnalyst: false
 };
 
+// Cache para estatísticas filtradas
+let statsCache = {
+  key: '',
+  data: null
+};
+
 // Lista de status disponíveis para filtro
 const STATUS_OPTIONS = [
   'A Fazer', 'Em Andamento', 'Em Progresso', 'In Progress',
@@ -81,6 +87,8 @@ export function renderDashboard() {
       showNoDate: false,
       showNoAnalyst: false
     };
+    // Invalidar cache ao limpar filtros
+    statsCache = { key: '', data: null };
     // Recarregar a página para resetar selects
     location.reload();
   });
@@ -104,52 +112,61 @@ function setupFilterListeners(projects, users) {
   // Filtro por projeto
   document.getElementById('filter-project')?.addEventListener('change', (e) => {
     dashboardFilters.projectId = e.target.value;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   // Filtro por analista
   document.getElementById('filter-analyst')?.addEventListener('change', (e) => {
     dashboardFilters.analystId = e.target.value;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   // Filtro por status
   document.getElementById('filter-status')?.addEventListener('change', (e) => {
     dashboardFilters.status = e.target.value;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   // Filtro por prioridade
   document.getElementById('filter-priority')?.addEventListener('change', (e) => {
     dashboardFilters.priority = e.target.value;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   // Filtro por data inicial
   document.getElementById('filter-date-start')?.addEventListener('change', (e) => {
     dashboardFilters.dateStart = e.target.value;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   // Filtro por data final
   document.getElementById('filter-date-end')?.addEventListener('change', (e) => {
     dashboardFilters.dateEnd = e.target.value;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   // Filtros rápidos
   document.getElementById('filter-overdue')?.addEventListener('change', (e) => {
     dashboardFilters.showOverdue = e.target.checked;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   document.getElementById('filter-no-date')?.addEventListener('change', (e) => {
     dashboardFilters.showNoDate = e.target.checked;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 
   document.getElementById('filter-no-analyst')?.addEventListener('change', (e) => {
     dashboardFilters.showNoAnalyst = e.target.checked;
+    statsCache = { key: '', data: null };
     renderDashboardContent();
   });
 }
@@ -463,8 +480,17 @@ function renderWorkloadList(workload) {
 
 /**
  * Obtém estatísticas filtradas com base nos filtros atuais
+ * Com cache para evitar recálculos desnecessários
  */
 function getFilteredStats() {
+  // Gerar chave de cache baseada nos filtros atuais
+  const cacheKey = JSON.stringify(dashboardFilters);
+  
+  // Retornar cache se filtros não mudaram
+  if (statsCache.key === cacheKey && statsCache.data) {
+    return statsCache.data;
+  }
+  
   let cards = [...dataService.getCards()];
   let projects = [...dataService.getProjects()];
   
@@ -534,7 +560,7 @@ function getFilteredStats() {
     unknownStatus: cards.filter(c => c.status === 'Unknown')
   };
 
-  return { 
+  const result = { 
     totalProjects: projects.length, 
     totalCards: total, 
     byCategory, 
@@ -543,6 +569,11 @@ function getFilteredStats() {
     inconsistent,
     inconsistentData
   };
+  
+  // Atualizar cache
+  statsCache = { key: cacheKey, data: result };
+  
+  return result;
 }
 
 /**
@@ -662,7 +693,7 @@ function renderAuditCard(title, list, tooltip) {
       <div class="audit-info">
         <div class="audit-count">${count}</div>
         <div class="audit-label">${title}</div>
-        <div class="audit-tooltip" title="${tooltip}">${tooltip}</div>
+        <div class="audit-tooltip" title="${sanitizeTitle(tooltip)}">${tooltip}</div>
       </div>
     </div>
   `;

@@ -355,7 +355,7 @@ function renderExecutiveContent(projectKey) {
                   <div class="executive-list-item achievement">
                     <span class="executive-list-icon">✓</span>
                     <div class="executive-list-body">
-                      <span class="executive-list-title" title="${a.title}">${formatTicket(a)}</span>
+                      <span class="executive-list-title" title="${sanitizeTitle(a.title)}">${formatTicket(a)}</span>
                       <span class="executive-list-meta">${formatDate(a.resolvedAt)}</span>
                     </div>
                   </div>
@@ -374,7 +374,7 @@ function renderExecutiveContent(projectKey) {
                   <div class="executive-list-item">
                     <span class="executive-list-priority priority-${n.priority?.toLowerCase() || 'medium'}">${n.priority || 'Medium'}</span>
                     <div class="executive-list-body">
-                      <span class="executive-list-title" title="${n.title}">${formatTicket(n)}</span>
+                      <span class="executive-list-title" title="${sanitizeTitle(n.title)}">${formatTicket(n)}</span>
                       <span class="executive-list-meta">${n.status}</span>
                     </div>
                   </div>

@@ -70,7 +70,7 @@ function startStatusPolling() {
     } catch (e) {
       console.warn('[DataPage] Erro no polling de status:', e.message);
     }
-  }, 5000); // A cada 5 segundos
+  }, 15000); // A cada 15 segundos (otimizado para reduzir strain no servidor)
 }
 
 async function loadInitialData() {
