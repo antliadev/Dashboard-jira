@@ -47,11 +47,25 @@ class DataService {
   }
 
   /**
+   * Retorna os headers com sessão
+   */
+  _getHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionId = localStorage.getItem('sessionId');
+    if (sessionId) {
+      headers['x-session-id'] = sessionId;
+    }
+    return headers;
+  }
+
+  /**
    * Carrega configuração do Jira
    */
   async loadConfig() {
     try {
-      const response = await fetch(`${this._apiBase}/config`);
+      const response = await fetch(`${this._apiBase}/config`, {
+        headers: this._getHeaders()
+      });
       
       // Validar content-type
       const contentType = response.headers.get('content-type');
@@ -89,7 +103,7 @@ class DataService {
     try {
       const response = await fetch(`${this._apiBase}/config`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this._getHeaders(),
         body: JSON.stringify(config)
       });
       
@@ -130,7 +144,7 @@ class DataService {
     try {
       const response = await fetch(`${this._apiBase}/test-connection`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this._getHeaders(),
         body: JSON.stringify(config)
       });
       
@@ -164,7 +178,7 @@ class DataService {
     try {
       const response = await fetch(`${this._apiBase}/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this._getHeaders(),
         body: JSON.stringify({})
       });
       
@@ -194,7 +208,9 @@ class DataService {
    */
   async getSyncStatus() {
     try {
-      const response = await fetch(`${this._apiBase}/sync/status`);
+      const response = await fetch(`${this._apiBase}/sync/status`, {
+        headers: this._getHeaders()
+      });
       if (response.ok) {
         return await response.json();
       }
@@ -210,7 +226,8 @@ class DataService {
   async clearCache() {
     try {
       const response = await fetch(`${this._apiBase}/cache/clear`, {
-        method: 'POST'
+        method: 'POST',
+        headers: this._getHeaders()
       });
       return await response.json();
     } catch (error) {
@@ -224,7 +241,9 @@ class DataService {
    */
   async loadJiraData() {
     try {
-      const response = await fetch(`${this._apiBase}/dashboard`);
+      const response = await fetch(`${this._apiBase}/dashboard`, {
+        headers: this._getHeaders()
+      });
       
       if (!response.ok) {
         const error = await response.json();

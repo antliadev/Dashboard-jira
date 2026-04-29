@@ -22,7 +22,7 @@ export function renderProjects() {
       ${projects.map(p => {
         const stats = dataService.getProjectStats(p.id);
         return `
-          <div class="project-card" onclick="location.hash='#/projects/${sanitize(p.id)}'">
+          <div class="project-card" onclick="location.hash='#/board?projectKey=${sanitize(p.key)}'">
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
               <span class="project-key">${sanitize(p.key)}</span>
               <span class="badge badge-health-${stats.health}">${healthLabel(stats.health)}</span>

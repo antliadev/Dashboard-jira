@@ -310,7 +310,7 @@ function renderExecutiveContent(projectKey) {
                 </div>
                 <div class="executive-status-info">
                   <div class="executive-status-label" style="color: ${health.bg}">${healthLabel.toUpperCase()}</div>
-                  <div class="executive-status-desc">Saúde geral do projeto</div>
+                  <div class="executive-status-desc">Porcentagem de Conclusão</div>
                   <div class="executive-traffic-mini">
                     <span class="executive-traffic-dot ${healthStatus === 'green' ? 'active' : ''}" style="background: #22C55E"></span>
                     <span class="executive-traffic-dot ${healthStatus === 'yellow' ? 'active' : ''}" style="background: #F59E0B"></span>

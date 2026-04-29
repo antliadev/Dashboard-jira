@@ -85,6 +85,7 @@ router.post('/config', async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/test-connection', async (req, res) => {
   try {
+    console.log('[test-connection] Body recebido:', JSON.stringify(req.body));
     let { baseUrl, email, token, jql } = req.body;
 
     // Se não forneceu no body, buscar do Supabase

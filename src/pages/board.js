@@ -11,8 +11,13 @@ import { formatDate, priorityLabel, sanitize, sanitizeTitle } from '../utils/hel
 let currentFilters = {
   projectId: '',
   analystId: '',
+  status: '',
   priority: '',
-  search: ''
+  dueDate: '',
+  search: '',
+  showOverdue: false,
+  showNoDate: false,
+  showNoAnalyst: false
 };
 
 /**
@@ -33,12 +38,50 @@ const COLUMN_LABELS = {
 };
 
 export function renderBoard() {
+  // Ler query params para aplicar filtros automaticamente
+  const hash = window.location.hash;
+  const params = new URLSearchParams(hash.split('?')[1] || '');
+  
+  // Mapear projectKey para projectId
+  const projectKeyParam = params.get('projectKey');
+  const analystIdParam = params.get('analystId');
+  
+  if (projectKeyParam) {
+    const project = dataService.getProjects().find(p => p.key === projectKeyParam);
+    if (project) {
+      currentFilters.projectId = project.key;
+    }
+  }
+  
+  if (analystIdParam) {
+    currentFilters.analystId = analystIdParam;
+  }
+  
   const header = document.getElementById('page-header');
+  
+  // Verificar filtros ativos para mostrar no header
+  const activeFilters = [];
+  if (currentFilters.projectId) {
+    const p = dataService.getProjects().find(p => p.key === currentFilters.projectId);
+    if (p) activeFilters.push({ type: 'project', label: p.name, value: p.key });
+  }
+  if (currentFilters.analystId) {
+    const u = dataService.getUsers().find(u => u.id === currentFilters.analystId);
+    if (u) activeFilters.push({ type: 'analyst', label: u.displayName, value: u.id });
+  }
+  
+  const clearFiltersBtn = (currentFilters.projectId || currentFilters.analystId) 
+    ? `<button class="btn btn-secondary btn-sm" onclick="clearBoardFilters()" style="margin-left: 12px;">🗑️ Limpar Filtros</button>` 
+    : '';
   
   header.innerHTML = `
     <div>
       <h2>Board Kanban</h2>
-      <div class="subtitle">Visualização por status com arrastar e soltar</div>
+      <div class="subtitle" style="display: flex; align-items: center; gap: 8px;">
+        <span>Visualização por status com arrastar e soltar</span>
+        ${activeFilters.map(f => `<span class="badge" style="background: var(--accent-glow); color: var(--accent); font-size: 11px;">${f.type === 'project' ? '📁' : '👤'} ${sanitize(f.label)}</span>`).join('')}
+        ${clearFiltersBtn}
+      </div>
     </div>
     <div class="page-actions">
       <button class="btn btn-secondary" id="btn-refresh-board">
@@ -47,6 +90,13 @@ export function renderBoard() {
       </button>
     </div>
   `;
+  
+  // Adicionar função global para limpar filtros
+  window.clearBoardFilters = function() {
+    currentFilters.projectId = '';
+    currentFilters.analystId = '';
+    window.location.hash = '#/board';
+  };
 
   renderBoardContent();
 
@@ -86,6 +136,22 @@ function buildBoardColumns() {
   }
   if (currentFilters.priority) {
     cards = cards.filter(c => c.priority === currentFilters.priority.toLowerCase());
+  }
+  if (currentFilters.status) {
+    cards = cards.filter(c => c.status === currentFilters.status);
+  }
+  if (currentFilters.dueDate) {
+    const filterDate = new Date(currentFilters.dueDate);
+    cards = cards.filter(c => c.dueDate && new Date(c.dueDate) <= filterDate);
+  }
+  if (currentFilters.showOverdue) {
+    cards = cards.filter(c => c.dueDate && new Date(c.dueDate) < new Date() && resolveStatusCategory(c.status) !== StatusCategory.DONE);
+  }
+  if (currentFilters.showNoDate) {
+    cards = cards.filter(c => !c.dueDate);
+  }
+  if (currentFilters.showNoAnalyst) {
+    cards = cards.filter(c => !c.assigneeId || c.assigneeId === 'unassigned');
   }
   if (currentFilters.search) {
     const q = currentFilters.search.toLowerCase();
@@ -128,21 +194,28 @@ function renderBoardContent() {
 
   content.innerHTML = `
     <div class="filter-bar">
-      <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 150px;">
         <span class="filter-label">Projeto</span>
         <select id="filter-board-project">
           <option value="">Todos os Projetos</option>
           ${projects.map(p => `<option value="${sanitize(p.key)}" ${currentFilters.projectId === p.key ? 'selected' : ''}>${sanitize(p.name)}</option>`).join('')}
         </select>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 150px;">
         <span class="filter-label">Analista</span>
         <select id="filter-board-analyst">
           <option value="">Todos os Analistas</option>
           ${users.map(u => `<option value="${sanitize(u.id)}" ${currentFilters.analystId === u.id ? 'selected' : ''}>${sanitize(u.displayName)}</option>`).join('')}
         </select>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+        <span class="filter-label">Status</span>
+        <select id="filter-board-status">
+          <option value="">Todos os Status</option>
+          ${[...new Set(projects.flatMap(p => dataService.getCardsByProject(p.id).map(c => c.status)))].sort().map(s => `<option value="${sanitize(s)}" ${currentFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 110px;">
         <span class="filter-label">Prioridade</span>
         <select id="filter-board-priority">
           <option value="">Todas</option>
@@ -153,10 +226,30 @@ function renderBoardContent() {
           <option value="lowest" ${currentFilters.priority === 'lowest' ? 'selected' : ''}>Menor</option>
         </select>
       </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 120px;">
+        <span class="filter-label">Data Até</span>
+        <input type="date" id="filter-board-due-date" value="${currentFilters.dueDate || ''}">
+      </div>
       <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
         <span class="filter-label">Busca</span>
         <input type="search" id="search-board" placeholder="Buscar por chave ou título..." value="${currentFilters.search}">
       </div>
+    </div>
+    
+    <!-- Filtros rápidos -->
+    <div class="filter-bar" style="gap: 16px; padding: 10px 16px;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+        <input type="checkbox" id="filter-board-overdue" ${currentFilters.showOverdue ? 'checked' : ''} style="accent-color: var(--danger);">
+        <span style="color: ${currentFilters.showOverdue ? 'var(--danger)' : 'var(--text-secondary)'}">⚠️ Vencidos</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+        <input type="checkbox" id="filter-board-no-date" ${currentFilters.showNoDate ? 'checked' : ''} style="accent-color: var(--warning);">
+        <span style="color: ${currentFilters.showNoDate ? 'var(--warning)' : 'var(--text-secondary)'}">📅 Sem Data</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+        <input type="checkbox" id="filter-board-no-analyst" ${currentFilters.showNoAnalyst ? 'checked' : ''} style="accent-color: var(--accent);">
+        <span style="color: ${currentFilters.showNoAnalyst ? 'var(--accent)' : 'var(--text-secondary)'}">👤 Sem Analista</span>
+      </label>
     </div>
 
     <div class="kanban-wrapper">
@@ -239,6 +332,26 @@ function renderBoardContent() {
   });
   document.getElementById('filter-board-priority')?.addEventListener('change', (e) => {
     currentFilters.priority = e.target.value;
+    renderBoardContent();
+  });
+  document.getElementById('filter-board-status')?.addEventListener('change', (e) => {
+    currentFilters.status = e.target.value;
+    renderBoardContent();
+  });
+  document.getElementById('filter-board-due-date')?.addEventListener('change', (e) => {
+    currentFilters.dueDate = e.target.value;
+    renderBoardContent();
+  });
+  document.getElementById('filter-board-overdue')?.addEventListener('change', (e) => {
+    currentFilters.showOverdue = e.target.checked;
+    renderBoardContent();
+  });
+  document.getElementById('filter-board-no-date')?.addEventListener('change', (e) => {
+    currentFilters.showNoDate = e.target.checked;
+    renderBoardContent();
+  });
+  document.getElementById('filter-board-no-analyst')?.addEventListener('change', (e) => {
+    currentFilters.showNoAnalyst = e.target.checked;
     renderBoardContent();
   });
   document.getElementById('search-board')?.addEventListener('input', (e) => {

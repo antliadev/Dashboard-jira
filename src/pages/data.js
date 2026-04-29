@@ -204,7 +204,7 @@ function renderDataContent() {
                 <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" style="font-size: 11px; color: var(--accent); text-decoration: none;">Gerar Token ↗</a>
               </label>
               <div style="position: relative;">
-                <input type="password" id="jira-token" placeholder="${canEdit ? 'Cole seu API Token aqui' : 'Token criptografado no banco'}" ${!canEdit ? 'disabled' : ''}>
+                <input type="text" id="jira-token" placeholder="${canEdit ? 'Cole seu API Token aqui' : 'Token criptografado no banco'}" ${!canEdit ? 'disabled' : ''} style="font-family: monospace; font-size: 11px;">
                 ${config?.tokenMasked ? `<div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted); font-family: monospace;">${config.tokenMasked}</div>` : ''}
               </div>
             </div>

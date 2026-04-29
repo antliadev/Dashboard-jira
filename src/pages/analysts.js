@@ -22,7 +22,7 @@ export function renderAnalysts() {
       ${users.map(u => {
         const stats = u.stats;
         return `
-          <div class="analyst-card" onclick="location.hash='#/analysts/${sanitize(u.id)}'">
+          <div class="analyst-card" onclick="location.hash='#/board?analystId=${sanitize(u.id)}'" style="cursor: pointer;">
             <img src="${sanitizeTitle(u.avatarUrl || '')}" class="avatar avatar-lg" onerror="this.style.display='none'" alt="${sanitizeTitle(u.displayName)}">
             <div class="analyst-info">
               <h3 class="analyst-name">${sanitize(u.displayName)}</h3>
