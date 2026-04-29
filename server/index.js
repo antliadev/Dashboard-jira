@@ -18,31 +18,13 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Rotas de autenticação (públicas)
+// Rotas de autenticação
 app.post('/api/auth/login', auth.handleLogin);
 app.post('/api/auth/logout', auth.handleLogout);
 app.get('/api/auth/check', auth.handleCheckSession);
 
-// Middleware de proteção - exige sessão em todas as outras rotas
-const requireAuth = (req, res, next) => {
-  const sessionId = req.headers['x-session-id'];
-  
-  if (!sessionId) {
-    return res.status(401).json({ error: 'Acesso não autorizado' });
-  }
-  
-  const session = auth.validateSession(sessionId);
-  
-  if (!session) {
-    return res.status(401).json({ error: 'Sessão expirada ou inválida' });
-  }
-  
-  req.session = session;
-  next();
-};
-
-// Todas as rotas Jira - PROTEGIDAS
-app.use('/api/jira', requireAuth, jiraRoutes);
+// Todas as rotas Jira
+app.use('/api/jira', jiraRoutes);
 
 // Rota raiz para verificação rápida
 app.get('/api/jira', (req, res) => {
