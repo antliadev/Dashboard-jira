@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS jira_issues (
   jira_created_at TIMESTAMPTZ,
   jira_updated_at TIMESTAMPTZ,
   jira_resolved_at TIMESTAMPTZ,
+  due_date DATE,
+  story_points INTEGER DEFAULT 0,
   synced_at TIMESTAMPTZ DEFAULT now(),    -- quando foi salvo/atualizado no banco
   created_at TIMESTAMPTZ DEFAULT now()   -- primeira vez que entrou no banco
 );
