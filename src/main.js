@@ -1,6 +1,6 @@
 /**
  * main.js — Ponto de entrada da aplicação
- * Com sistema de autenticação
+ * Autenticação opcional quando credenciais do Jira estão configuradas
  */
 import './styles/main.css';
 import { initRouter, registerRoute, setNotFound, setAuthGuard } from './utils/router.js';
@@ -56,7 +56,7 @@ setNotFound(() => {
   `;
 });
 
-// ─── Sistema de Autenticação ─────────────────────────────
+// ─── Sistema de Autenticação Opcional ───────────────────
 
 // Verifica se tem sessão no localStorage
 function getSessionId() {
@@ -71,21 +71,41 @@ function clearSession() {
   localStorage.removeItem('sessionId');
 }
 
-// Guard do router - verifica autenticação antes de renderizar
+// Guard do router - autenticação opcional
 async function authGuard(path) {
   // Se é rota pública, permite
   if (publicRoutes.includes(path)) {
     return true;
   }
 
+  // Verifica se tem sessão local
   const sessionId = getSessionId();
   
   if (!sessionId) {
+    // Sem sessão - tenta verificar se há credenciais do Jira configuradas
+    // Se tiver, permite acesso (sistema usa credenciais do banco, não login)
+    try {
+      const response = await fetch('/api/jira/config', { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+      if (response.ok) {
+        const config = await response.json();
+        if (config.isConfigured) {
+          // Há credenciais do Jira - permite acesso
+          return true;
+        }
+      }
+    } catch (e) {
+      // Erro ao buscar config - permite acesso em modo dev
+      console.warn('Auth: erro ao verificar config, permitindo acesso');
+    }
+    
+    // Não tem credenciais - redireciona para login
     window.location.hash = '#/login';
     return false;
   }
 
-  // Verifica sessão com servidor
+  // Tem sessão - verifica com servidor
   try {
     const response = await fetch('/api/auth/check', {
       headers: { 'x-session-id': sessionId }
@@ -96,13 +116,25 @@ async function authGuard(path) {
     if (data.authenticated) {
       return true;
     } else {
+      // Sessão inválida - tenta verificar credenciais do Jira
+      try {
+        const configRes = await fetch('/api/jira/config');
+        if (configRes.ok) {
+          const config = await configRes.json();
+          if (config.isConfigured) {
+            clearSession();
+            return true;
+          }
+        }
+      } catch (e) {}
+      
       clearSession();
       window.location.hash = '#/login';
       return false;
     }
   } catch (err) {
-    // Erro de rede - tenta sem autenticação (fallback para modo dev)
-    console.warn('Auth: erro de rede, permitindo acesso em modo dev');
+    // Erro de rede - permite acesso (fallback)
+    console.warn('Auth: erro de rede, permitindo acesso');
     return true;
   }
 }
@@ -151,16 +183,19 @@ async function initApp() {
           updateLayout(true);
           renderSidebar();
         } else {
-          clearSession();
-          return; // Redirect to login via guard
+          // Sessão inválida - tenta carregar dados
+          updateLayout(true);
+          renderSidebar();
         }
       } catch (err) {
-        // Modo dev sem servidor - mostra layout
+        // Erro - mostra layout completo
         updateLayout(true);
         renderSidebar();
       }
     } else {
-      return; // Redirect to login via guard
+      // Sem sessão - mostra layout completo (vai verificar credenciais via router)
+      updateLayout(true);
+      renderSidebar();
     }
   }
   
