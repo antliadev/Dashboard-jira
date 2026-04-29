@@ -17,26 +17,26 @@ export function renderSidebar() {
   const source = dataService.source;
   const sidebar = document.getElementById('sidebar');
   sidebar.innerHTML = `
-    <div class="sidebar-header">
+    <div class="sidebar-header" role="banner">
       <div class="sidebar-logo">
-        <div class="logo-icon">JD</div>
+        <div class="logo-icon" aria-hidden="true">JD</div>
         <h1>Jira Dash</h1>
       </div>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-section">Principal</div>
-      <button class="nav-item" data-route="/" onclick="location.hash='#/'">${ICONS.dashboard}<span>Dashboard</span></button>
-      <button class="nav-item" data-route="/executive" onclick="location.hash='#/executive'">${ICONS.executive}<span>Resumo Executivo</span></button>
-      <button class="nav-item" data-route="/board" onclick="location.hash='#/board'">${ICONS.board}<span>Board Kanban</span></button>
-      <button class="nav-item" data-route="/projects" onclick="location.hash='#/projects'">${ICONS.projects}<span>Projetos</span></button>
-      <button class="nav-item" data-route="/cards" onclick="location.hash='#/cards'">${ICONS.cards}<span>Cards / Issues</span></button>
-      <button class="nav-item" data-route="/analysts" onclick="location.hash='#/analysts'">${ICONS.analysts}<span>Analistas</span></button>
-      <div class="nav-section">Configuração</div>
-      <button class="nav-item" data-route="/data" onclick="location.hash='#/data'">${ICONS.data}<span>Dados</span></button>
+    <nav class="sidebar-nav" role="navigation" aria-label="Menu principal">
+      <div class="nav-section" role="heading" aria-level="2">Principal</div>
+      <button class="nav-item" data-route="/" onclick="location.hash='#/'" aria-label="Ir para Dashboard">${ICONS.dashboard}<span>Dashboard</span></button>
+      <button class="nav-item" data-route="/executive" onclick="location.hash='#/executive'" aria-label="Ir para Resumo Executivo">${ICONS.executive}<span>Resumo Executivo</span></button>
+      <button class="nav-item" data-route="/board" onclick="location.hash='#/board'" aria-label="Ir para Board Kanban">${ICONS.board}<span>Board Kanban</span></button>
+      <button class="nav-item" data-route="/projects" onclick="location.hash='#/projects'" aria-label="Ir para Projetos">${ICONS.projects}<span>Projetos</span></button>
+      <button class="nav-item" data-route="/cards" onclick="location.hash='#/cards'" aria-label="Ir para Cards">${ICONS.cards}<span>Cards / Issues</span></button>
+      <button class="nav-item" data-route="/analysts" onclick="location.hash='#/analysts'" aria-label="Ir para Analistas">${ICONS.analysts}<span>Analistas</span></button>
+      <div class="nav-section" role="heading" aria-level="2">Configuração</div>
+      <button class="nav-item" data-route="/data" onclick="location.hash='#/data'" aria-label="Ir para Dados">${ICONS.data}<span>Dados</span></button>
     </nav>
-    <div class="sidebar-footer">
-      <div class="data-source-badge">
-        <span class="dot ${source}"></span>
+    <div class="sidebar-footer" role="contentinfo">
+      <div class="data-source-badge" aria-label="Fonte de dados atual">
+        <span class="dot ${source}" aria-hidden="true"></span>
         <span>Fonte: <strong>${source === 'mock' ? 'Mock Data' : source === 'imported' ? 'Importado' : 'API Jira'}</strong></span>
       </div>
     </div>

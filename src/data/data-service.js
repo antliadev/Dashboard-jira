@@ -310,25 +310,20 @@ class DataService {
     }
     
     // Transformar cards/issues
-    // Suporta AMBOS os formatos:
-    //   - flat (do banco): issue.project_key, issue.status_name, etc.
-    //   - aninhado (legado): issue.project.key, issue.status.name, etc.
+    // Formato flat (do banco Supabase): issue.project_key, issue.status_name, etc.
     this._cards = issues.map(i => {
-      // Detectar formato: se tem project_key é flat, senão é aninhado
-      const isFlat = 'project_key' in i;
-      
-      const projectKey  = isFlat ? i.project_key  : i.project?.key || '';
-      const assigneeId  = isFlat ? i.assignee_id  : i.assignee?.id || null;
-      const statusName  = isFlat ? i.status_name  : i.status?.name || 'Unknown';
-      const priorityName = isFlat ? i.priority_name : i.priority?.name || null;
-      const typeName    = isFlat ? i.type_name    : i.type?.name || 'Task';
-      const createdAt   = isFlat ? i.jira_created_at : i.createdAt;
-      const updatedAt   = isFlat ? i.jira_updated_at : i.updatedAt;
-      const resolvedAt  = isFlat ? i.jira_resolved_at : i.resolvedAt;
-      const dueDate     = isFlat ? i.due_date : i.dueDate;
-      const parentKey   = isFlat ? i.parent_key   : i.parent?.key || null;
-      const issueId     = isFlat ? i.issue_id     : i.id;
-      const issueKey    = isFlat ? i.issue_key    : i.key;
+      const projectKey  = i.project_key || '';
+      const assigneeId  = i.assignee_id || null;
+      const statusName  = i.status_name || 'Unknown';
+      const priorityName = i.priority_name || null;
+      const typeName    = i.type_name || 'Task';
+      const createdAt   = i.jira_created_at;
+      const updatedAt   = i.jira_updated_at;
+      const resolvedAt  = i.jira_resolved_at;
+      const dueDate     = i.due_date;
+      const parentKey   = i.parent_key || null;
+      const issueId     = i.issue_id;
+      const issueKey    = i.issue_key;
 
       const isInconsistent = !assigneeId || 
                              !priorityName || 
