@@ -297,7 +297,10 @@ function renderDataContent() {
   // Se houver um resultado de teste, mostrar em um modal ou alerta
   if (testResult) {
     if (testResult.success) {
-      alert(`Conexão OK!\nUsuário: ${testResult.user?.displayName}\nTickets encontrados: ${testResult.testResult?.totalTickets}`);
+      const validatedWith = testResult.validatedWith === 'saved' 
+        ? '\n\n(Validadas credenciais salvas no Supabase)' 
+        : '\n\n(Validadas credenciais do formulário)';
+      alert(`Conexão OK!${validatedWith}\nUsuário: ${testResult.user?.displayName}\nTickets encontrados: ${testResult.testResult?.totalTickets}`);
     } else {
       alert(`Erro na Conexão: ${testResult.error}`);
     }
@@ -317,7 +320,31 @@ function setupEventListeners() {
     
     try {
       const configData = getFormData();
+      
+      // Verificar se o usuário forneceu dados ou se vai usar as salvas
+      const usingSavedCredentials = !configData.baseUrl && !configData.email && !configData.token;
+      
+      if (usingSavedCredentials && !config?.isConfigured) {
+        testResult = { success: false, error: 'Nenhuma credencial fornecida e nenhuma credencial salva encontrada.' };
+        renderDataContent();
+        return;
+      }
+      
+      if (usingSavedCredentials && config?.isConfigured) {
+        // Usuário não forneceu dados, vai usar as salvas
+        console.log('[DataPage] Validando credenciais salvas no Supabase...');
+      } else {
+        // Usuário forneceu dados no formulário
+        console.log('[DataPage] Validando credenciais do formulário...');
+      }
+      
       testResult = await dataService.testConnection(configData);
+      
+      // Adicionar informação sobre o que foi validado
+      if (testResult.success) {
+        testResult.validatedWith = usingSavedCredentials ? 'saved' : 'form';
+      }
+      
       renderDataContent();
     } catch (error) {
       testResult = { success: false, error: error.message };

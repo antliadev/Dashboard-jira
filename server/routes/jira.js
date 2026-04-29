@@ -343,10 +343,26 @@ router.get('/board', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// POST /api/jira/cache/clear — Placeholder (sem cache em memória)
+// POST /api/jira/cache/clear — Limpa cache/status de sync
 // ─────────────────────────────────────────────
-router.post('/cache/clear', (req, res) => {
-  res.json({ message: 'Cache não utilizado. Dados são lidos diretamente do banco.' });
+router.post('/cache/clear', async (req, res) => {
+  try {
+    // Resetar status de sincronização no Supabase
+    const conn = await configService.getActiveConnection();
+    if (conn && conn.id) {
+      await supabase
+        .from('jira_connections')
+        .update({ 
+          last_sync_status: null,
+          last_sync_error: null,
+          last_sync_at: null
+        })
+        .eq('id', conn.id);
+    }
+    res.json({ success: true, message: 'Status de sincronização resetado com sucesso.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // ─────────────────────────────────────────────
