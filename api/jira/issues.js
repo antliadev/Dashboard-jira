@@ -4,6 +4,7 @@
  */
 import { fetchIssuesFromDatabase } from '../../lib/jiraService.js';
 import { verifyAuth } from '../../auth/verify.js';
+import { isConfigured, supabase } from '../../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   // Verificar autenticação
@@ -12,6 +13,17 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
+  }
+
+  // Verificar se Supabase está configurado
+  if (!isConfigured || !supabase) {
+    return res.status(200).json({
+      total: 0,
+      limit: 100,
+      offset: 0,
+      issues: [],
+      info: 'Supabase não configurado no servidor.'
+    });
   }
 
   try {
