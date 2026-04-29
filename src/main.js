@@ -157,7 +157,8 @@ async function authGuard(path) {
 
   // Tem sessão - verifica com servidor
   try {
-    const response = await fetch('/api/auth/check', {
+    const response = await fetch('/api/auth?check=1', {
+      method: 'GET',
       headers: { 'x-session-id': sessionId }
     });
     
@@ -224,7 +225,8 @@ async function initApp() {
     
     if (sessionId) {
       try {
-        const response = await fetch('/api/auth/check', {
+        const response = await fetch('/api/auth?check=1', {
+          method: 'GET',
           headers: { 'x-session-id': sessionId }
         });
         const data = await response.json();
