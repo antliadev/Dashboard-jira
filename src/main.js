@@ -1,8 +1,9 @@
 /**
  * main.js — Ponto de entrada da aplicação
+ * Sistema de autenticação com guards de rota
  */
 import './styles/main.css';
-import { initRouter, registerRoute, setNotFound, getRoutePath } from './utils/router.js';
+import { initRouter, registerRoute, setNotFound, getRoutePath, registerGuard } from './utils/router.js';
 import { renderSidebar } from './components/sidebar.js';
 import { dataService } from './data/data-service.js';
 
@@ -17,9 +18,17 @@ import { renderExecutive } from './pages/executive.js';
 import { renderLogin } from './pages/login.js';
 
 // Rotas públicas (não requerem autenticação)
-const publicRoutes = ['/login', '/data'];
+const PUBLIC_ROUTES = ['/login'];
 
-// ─── Configuração de Rotas ──────────────────────────────
+// ─── Estado de autenticação ───────────────────────────────
+
+let authState = {
+  isAuthenticated: false,
+  sessionId: null,
+  isChecking: false
+};
+
+// ─── Configuração de Rotas ────────────────────────────────
 
 registerRoute('/', renderDashboard);
 registerRoute('/login', renderLogin);
@@ -31,9 +40,8 @@ registerRoute('/data', renderData);
 registerRoute('/executive', renderExecutive);
 registerRoute('/executive/:projectKey', renderExecutive);
 
-// Rotas de detalhe (Placeholders para futura expansão)
+// Rotas de detalhe
 registerRoute('/projects/:id', (params) => {
-  // Renderiza a listagem de cards filtrada por projeto como visão de detalhe inicial
   window.location.hash = `#/cards?projectId=${params.id}`;
 });
 
@@ -51,109 +59,159 @@ setNotFound(() => {
   `;
 });
 
-// ─── Autenticação ────────────────────────────────────
+// ─── Sistema de Autenticação ──────────────────────────────
 
-async function checkAuth() {
+/**
+ * Verificação síncrona local (rápida)
+ * Retorna true se tem sessionId, false se não tem
+ */
+function hasLocalSession() {
+  return !!localStorage.getItem('sessionId');
+}
+
+/**
+ * Limpa sessão e redireciona para login
+ */
+function clearSessionAndRedirect() {
+  localStorage.removeItem('sessionId');
+  authState.isAuthenticated = false;
+  authState.sessionId = null;
+  window.location.hash = '#/login';
+}
+
+/**
+ * Verifica autenticação com o servidor (assíncrona)
+ * Executa APENSAH se tem sessionId local
+ */
+async function verifySessionWithServer() {
   const sessionId = localStorage.getItem('sessionId');
-  const currentPath = getRoutePath();
   
-  // Se já está na página de login, não precisa verificar
-  if (currentPath === '/login') {
-    return true;
-  }
-  
-  // Se é rota pública, permite acesso
-  if (publicRoutes.includes(currentPath)) {
-    return true;
-  }
-  
-  // Se não tem sessão, redireciona para login
   if (!sessionId) {
-    window.location.hash = '#/login';
     return false;
   }
   
-  // Verifica sessão com o servidor
   try {
     const response = await fetch('/api/auth/check', {
-      headers: {
-        'x-session-id': sessionId
-      }
+      headers: { 'x-session-id': sessionId }
     });
     
     if (!response.ok) {
-      // Sessão inválida ou expirada
-      localStorage.removeItem('sessionId');
-      window.location.hash = '#/login';
       return false;
     }
     
     const data = await response.json();
-    
-    if (!data.authenticated) {
-      localStorage.removeItem('sessionId');
-      window.location.hash = '#/login';
-      return false;
-    }
-    
-    return true;
+    return data.authenticated === true;
   } catch (err) {
-    // Erro de rede, considera não autenticado
-    localStorage.removeItem('sessionId');
-    window.location.hash = '#/login';
-    return false;
+    // Erro de rede - mantém sessão local temporariamente
+    console.warn('Auth: erro ao verificar sessão com servidor');
+    return true; // Permite continuar, será verificado novamente
   }
 }
 
-// ─── Layout do Sistema ──────────────────────────────────
+/**
+ * Guard de rota - executa antes de cada renderização
+ * Retorna true = permite, false = bloqueia
+ */
+async function authGuard(path) {
+  // Se está em rota pública, permite
+  if (PUBLIC_ROUTES.includes(path)) {
+    return true;
+  }
+  
+  // Se não tem sessão local, bloqueia
+  if (!hasLocalSession()) {
+    window.location.hash = '#/login';
+    return false;
+  }
+  
+  // Tem sessão local - verifica com servidor
+  const isValid = await verifySessionWithServer();
+  
+  if (!isValid) {
+    clearSessionAndRedirect();
+    return false;
+  }
+  
+  // Sessão válida - atualizar estado
+  authState.isAuthenticated = true;
+  authState.sessionId = localStorage.getItem('sessionId');
+  
+  return true;
+}
 
-let isAuthenticated = false;
-
+/**
+ * Atualiza o layout baseado no estado de autenticação
+ */
 function updateLayout(authenticated) {
-  isAuthenticated = authenticated;
   const sidebar = document.getElementById('sidebar');
   
   if (authenticated) {
-    // Usuário autenticado - mostrar sidebar e layout normal
     sidebar?.classList.remove('hidden');
     document.body.classList.remove('login-only');
   } else {
-    // Não autenticado - ocultar sidebar
     sidebar?.classList.add('hidden');
     document.body.classList.add('login-only');
   }
 }
 
-// Expor globalmente para uso em outras páginas
+// Expor globalmente
 window.updateLayout = updateLayout;
 
-// ─── Inicialização ────────────────────────────────────
+// Função de logout global
+window.logout = async function() {
+  const sessionId = localStorage.getItem('sessionId');
+  
+  if (sessionId) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'x-session-id': sessionId }
+      });
+    } catch (e) {
+      // Ignora erro no logout
+    }
+  }
+  
+  clearSessionAndRedirect();
+};
+
+// ─── Inicialização ────────────────────────────────────────
 
 async function initApp() {
-  // Verificar autenticação PRIMEIRO, antes de renderizar qualquer coisa
-  const authenticated = await checkAuth();
+  // Registrar guard ANTES de iniciar router
+  registerGuard(authGuard);
   
-  if (!authenticated) {
-    // Não autenticado - mostrar apenas página de login sem sidebar
+  // Verificação inicial - síncrona e rápida
+  const hasSession = hasLocalSession();
+  
+  if (!hasSession) {
+    // Sem sessão - mostra login sem renderizar nada
     updateLayout(false);
     initRouter();
     return;
   }
   
-  // Autenticado - mostrar layout completo
+  // Tem sessão local - verifica com servidor
+  const isValid = await verifySessionWithServer();
+  
+  if (!isValid) {
+    // Sessão inválida
+    clearSessionAndRedirect();
+    return;
+  }
+  
+  // Sessão válida - inicializa normalmente
+  authState.isAuthenticated = true;
+  authState.sessionId = localStorage.getItem('sessionId');
   updateLayout(true);
   renderSidebar();
-
-  // Inicializar roteador
   initRouter();
 
-  // Carregar configuração e verificar se há dados salvos
+  // Carregar dados do Jira
   try {
     await dataService.loadConfig();
-    
     const syncStatus = await dataService.getSyncStatus();
     
-    // Sempre tenta carregar dados se estiver configurado, independente do status da última sincronização
     if (syncStatus.isConfigured) {
       try {
         await dataService.loadJiraData();
@@ -161,14 +219,12 @@ async function initApp() {
       } catch (err) {
         console.warn('Jira Dashboard: Falha ao carregar dados existentes:', err.message);
       }
-    } else {
-      console.log('Jira não configurado. Use a página Dados para configurar.');
     }
   } catch (error) {
     console.warn('Erro ao inicializar:', error.message);
   }
 
-  // Escutar mudanças no serviço de dados para re-renderizar a sidebar (badge de fonte)
+  // Escutar mudanças no serviço de dados
   dataService.subscribe(() => {
     renderSidebar();
   });
