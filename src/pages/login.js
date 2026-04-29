@@ -96,6 +96,11 @@ export function renderLogin() {
       // Salvar sessionId no localStorage
       localStorage.setItem('sessionId', data.sessionId);
       
+      // Atualizar layout para mostrar sidebar
+      if (window.updateLayout) {
+        window.updateLayout(true);
+      }
+      
       // Redirecionar para dashboard
       window.location.hash = '#/';
       
@@ -116,7 +121,7 @@ function addLoginStyles() {
   style.id = 'login-styles';
   style.textContent = `
     .login-container {
-      min-height: calc(100vh - 60px);
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
