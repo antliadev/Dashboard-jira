@@ -59,41 +59,14 @@ class DataService {
   }
 
   /**
-   * Carrega configuração do Jira
+   * Carrega configuração do Jira (Depreciado - agora stateless)
    */
   async loadConfig() {
-    try {
-      const response = await fetch(`${this._apiBase}/config`, {
-        headers: this._getHeaders()
-      });
-      
-      // Validar content-type
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('[DataService] Config response not JSON:', text.substring(0, 100));
-        return null;
-      }
-      
-      const config = await response.json();
-      this._config = config;
-      this._notify();
-      
-      // Detectar se é produção
-      if (config.isProduction) {
-        console.log('[DataService] Running in production mode');
-      }
-      
-      // Se source = env ou missing, não é editável
-      if (config.source === 'env' || config.isProduction) {
-        console.log('[DataService] Config loaded from environment variables');
-      }
-      
-      return config;
-    } catch (error) {
-      console.error('[DataService] Erro ao carregar configuração:', error.message);
-    }
-    return null;
+    // Agora retornamos apenas um esqueleto para não quebrar o frontend
+    // mas sem tentar fazer fetch em endpoint que retornaria 404
+    this._config = { source: 'form', isProduction: true };
+    this._notify();
+    return this._config;
   }
 
   /**
@@ -140,12 +113,24 @@ class DataService {
   /**
    * Testa conexão com o Jira
    */
-  async testConnection(config) {
+  async testJiraConnection(credentials) {
     try {
+      // Sanitização básica no frontend
+      let { baseUrl } = credentials;
+      if (baseUrl) {
+        baseUrl = baseUrl.trim().toLowerCase();
+        if (!baseUrl.startsWith('http')) {
+          baseUrl = `https://${baseUrl}`;
+        }
+        // Remover barra final se existir
+        baseUrl = baseUrl.replace(/\/$/, '');
+        credentials.baseUrl = baseUrl;
+      }
+
       const response = await fetch(`${this._apiBase}/test-connection`, {
         method: 'POST',
         headers: this._getHeaders(),
-        body: JSON.stringify(config)
+        body: JSON.stringify(credentials)
       });
       
       // Validar content-type antes de parsear JSON
@@ -177,6 +162,18 @@ class DataService {
    */
   async syncFromJira(credentials) {
     try {
+      // Sanitização básica no frontend
+      let { baseUrl } = credentials;
+      if (baseUrl) {
+        baseUrl = baseUrl.trim().toLowerCase();
+        if (!baseUrl.startsWith('http')) {
+          baseUrl = `https://${baseUrl}`;
+        }
+        // Remover barra final
+        baseUrl = baseUrl.replace(/\/$/, '');
+        credentials.baseUrl = baseUrl;
+      }
+
       const response = await fetch(`${this._apiBase}/sync`, {
         method: 'POST',
         headers: this._getHeaders(),

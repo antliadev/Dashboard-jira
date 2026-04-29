@@ -330,7 +330,7 @@ function setupEventListeners() {
       
       console.log('[DataPage] Validando credenciais do formulário...');
       
-      testResult = await dataService.testConnection(configData);
+      testResult = await dataService.testJiraConnection(configData);
       
       // Adicionar informação sobre o que foi validado
       if (testResult.success) {
