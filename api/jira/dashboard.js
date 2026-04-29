@@ -2,6 +2,7 @@ import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraServi
 import { countIssuesInDatabase } from '../../lib/jiraService.js';
 import { configService } from '../../lib/configService.js';
 import { verifyAuth } from '../../auth/verify.js';
+import { isConfigured, supabase } from '../../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   // Suporte a CORS Preflight
@@ -23,6 +24,24 @@ export default async function handler(req, res) {
   res.setHeader('Expires', '0');
 
   try {
+    // Verificar se Supabase está configurado
+    if (!isConfigured || !supabase) {
+      return res.status(200).json({
+        totalIssues: 0,
+        totalProjects: 0,
+        totalAnalysts: 0,
+        issues: [],
+        projects: [],
+        analysts: [],
+        statuses: [],
+        metrics: {},
+        board: { columns: [] },
+        lastSyncedAt: null,
+        lastSyncStatus: null,
+        info: 'Supabase não configurado no servidor. Configure as variáveis de ambiente no Vercel.'
+      });
+    }
+
     const total = await countIssuesInDatabase();
     const config = await configService.getActiveConnection();
 

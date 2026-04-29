@@ -26,9 +26,21 @@ export async function verifyAuth(req, res) {
     return true;
   }
 
+  // Se Supabase não está configurado, permitir acesso temporariamente
+  // Isso permite que a página de dados funcione para configurar credenciais
+  if (!isConfigured || !supabase) {
+    console.warn('[verifyAuth] Supabase não configurado - permitindo acesso temporário para configuração');
+    return true;
+  }
+
   // 1) Verificar se há credenciais do Jira configuradas
   // Se sim, o sistema funciona como "acesso público" baseado nas credenciais do banco
-  const conn = isConfigured && supabase ? await configService.getActiveConnection() : null;
+  let conn = null;
+  try {
+    conn = await configService.getActiveConnection();
+  } catch (e) {
+    console.warn('[verifyAuth] Erro ao buscar conexão:', e.message);
+  }
   
   if (conn && conn.baseUrl && conn.email && conn.token) {
     // Há credenciais do Jira configuradas - acesso permitido
