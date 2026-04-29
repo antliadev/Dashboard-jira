@@ -14,8 +14,11 @@ const ICONS = {
 };
 
 export function renderSidebar() {
-  const source = dataService?.source || 'mock';
+  const source = dataService?.source || 'empty';
   const sidebar = document.getElementById('sidebar');
+  const sourceLabel = source === 'empty' ? 'Sem dados' : 
+                      source === 'mock' ? 'Mock Data' : 
+                      source === 'imported' ? 'Importado' : 'API Jira';
   sidebar.innerHTML = `
     <div class="sidebar-header" role="banner">
       <div class="sidebar-logo">
@@ -37,7 +40,7 @@ export function renderSidebar() {
     <div class="sidebar-footer" role="contentinfo">
       <div class="data-source-badge" aria-label="Fonte de dados atual">
         <span class="dot ${source}" aria-hidden="true"></span>
-        <span>Fonte: <strong>${source === 'mock' ? 'Mock Data' : source === 'imported' ? 'Importado' : 'API Jira'}</strong></span>
+        <span>Fonte: <strong>${sourceLabel}</strong></span>
       </div>
     </div>
   `;

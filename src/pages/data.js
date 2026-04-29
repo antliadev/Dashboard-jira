@@ -430,9 +430,17 @@ function setupEventListeners() {
         setTimeout(() => reject(new Error('Tempo limite excedido. A sincronização continuará rodando no servidor.')), 55000)
       );
 
-      const result = await Promise.race([syncPromise, timeoutPromise]);
-      
-      log(`Sincronização concluída: ${result.totalIssues} tickets processados.`, '#00ff00');
+      let result;
+      try {
+        result = await Promise.race([syncPromise, timeoutPromise]);
+        log(`Sincronização concluída: ${result.totalIssues} tickets processados.`, '#00ff00');
+      } catch (error) {
+        if (error.message.includes('Tempo limite')) {
+          log('Sincronização ainda em andamento no servidor...', '#facc15');
+        } else {
+          throw error; // Re-lança erros reais
+        }
+      }
       
       // 3. Atualizar status local
       syncStatus = await dataService.getSyncStatus();
@@ -445,17 +453,16 @@ function setupEventListeners() {
       await dataService.loadJiraData();
       renderDataContent();
     } catch (error) {
-      log(`AVISO: ${error.message}`, error.message.includes('Tempo limite') ? '#facc15' : '#ef4444');
+      log(`ERRO: ${error.message}`, '#ef4444');
       
-      if (error.message.includes('Tempo limite')) {
-        alert('A sincronização está demorando mais que o esperado, mas continua processando no servidor.\n\nVocê pode aguardar o status mudar no card acima ou fechar esta página.');
-      } else {
-        alert('Erro na sincronização: ' + error.message);
-      }
+      // Forçar reset do status local para desbloquear o botão
+      syncStatus = { lastSyncStatus: 'error', lastSyncError: error.message };
       
-      syncStatus = await dataService.getSyncStatus();
+      alert('Erro na sincronização: ' + error.message);
+      
       renderDataContent();
     } finally {
+      // Sempre restaurar o botão, independente de sucesso ou erro
       btn.disabled = false;
       btn.innerHTML = originalContent;
     }

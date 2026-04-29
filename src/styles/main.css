@@ -71,6 +71,7 @@ input, select, textarea { font-family: inherit; }
   background: var(--bg-card); border-radius: var(--radius-sm); font-size: 12px; color: var(--text-secondary);
 }
 .data-source-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.data-source-badge .dot.empty { background: var(--text-secondary); }
 .data-source-badge .dot.mock { background: var(--warning); }
 .data-source-badge .dot.imported { background: var(--info); }
 .data-source-badge .dot.api { background: var(--success); }
