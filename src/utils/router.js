@@ -8,6 +8,22 @@ let currentRoute = null;
 let notFoundHandler = null;
 let authGuard = null;
 
+// ─── Registro de Rotas ─────────────────────────────────────
+
+/**
+ * Registra uma rota com seu handler
+ */
+export function registerRoute(pattern, handler) {
+  routes.set(pattern, handler);
+}
+
+/**
+ * Define o handler para rota não encontrada (404)
+ */
+export function setNotFound(handler) {
+  notFoundHandler = handler;
+}
+
 // ─── Sistema de Guards ──────────────────────────────────
 
 /**

@@ -1,16 +1,45 @@
 /**
  * dashboard.js — Página principal de visão executiva
+ * Versão com filtros completos
  */
 import { dataService } from '../data/data-service.js';
-import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate } from '../utils/helpers.js';
+import { resolveStatusCategory, StatusCategory, isCardOverdue } from '../data/models.js';
+import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate, priorityLabel } from '../utils/helpers.js';
 import Chart from 'chart.js/auto';
 
 let dashboardChart = null;
 let projectDistributionChart = null;
+let selectedWorkloadProject = '';
+
+// Estado global de filtros
+let dashboardFilters = {
+  projectId: '',
+  analystId: '',
+  status: '',
+  priority: '',
+  dateStart: '',
+  dateEnd: '',
+  showOverdue: false,
+  showNoDate: false,
+  showNoAnalyst: false
+};
+
+// Lista de status disponíveis para filtro
+const STATUS_OPTIONS = [
+  'A Fazer', 'Em Andamento', 'Em Progresso', 'In Progress',
+  'Concluído', 'Done', 'Bloqueado', 'Blocked',
+  'Ready4Test', 'Validação Cliente', 'Validação', 'QA'
+];
 
 export function renderDashboard() {
   const header = document.getElementById('page-header');
   const metadata = dataService.getSyncMetadata();
+  const projects = dataService.getProjects();
+  const users = dataService.getUsers();
+  
+  // Verificar se há filtros ativos
+  const activeFilters = getActiveFilterCount();
+  const clearBtnStyle = activeFilters > 0 ? '' : 'display: none;';
   
   header.innerHTML = `
     <div>
@@ -25,28 +54,209 @@ export function renderDashboard() {
         </span>
       </div>
     </div>
-    <div class="page-actions">
-      <select id="global-project-filter" class="btn btn-secondary" style="min-width: 180px;">
-        <option value="">Todos os Projetos</option>
-        ${dataService.getProjects().map(p => `<option value="${sanitize(p.id)}">${sanitize(p.name)}</option>`).join('')}
-      </select>
+    <div class="page-actions" style="display: flex; gap: 8px; align-items: center;">
+      <button id="btn-clear-filters" class="btn btn-secondary" style="${clearBtnStyle}" title="Limpar todos os filtros">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        Limpar Filtros (${activeFilters})
+      </button>
     </div>
   `;
 
+  // Renderizar conteúdo com filtros
   renderDashboardContent();
 
-  // Listener para o filtro global
-  document.getElementById('global-project-filter').addEventListener('change', (e) => {
-    renderDashboardContent(e.target.value);
+  // Event listeners para filtros
+  setupFilterListeners(projects, users);
+  
+  // Listener para limpar filtros
+  document.getElementById('btn-clear-filters').addEventListener('click', () => {
+    dashboardFilters = {
+      projectId: '',
+      analystId: '',
+      status: '',
+      priority: '',
+      dateStart: '',
+      dateEnd: '',
+      showOverdue: false,
+      showNoDate: false,
+      showNoAnalyst: false
+    };
+    // Recarregar a página para resetar selects
+    location.reload();
   });
 }
 
-function renderDashboardContent(projectId = null) {
+function getActiveFilterCount() {
+  let count = 0;
+  if (dashboardFilters.projectId) count++;
+  if (dashboardFilters.analystId) count++;
+  if (dashboardFilters.status) count++;
+  if (dashboardFilters.priority) count++;
+  if (dashboardFilters.dateStart) count++;
+  if (dashboardFilters.dateEnd) count++;
+  if (dashboardFilters.showOverdue) count++;
+  if (dashboardFilters.showNoDate) count++;
+  if (dashboardFilters.showNoAnalyst) count++;
+  return count;
+}
+
+function setupFilterListeners(projects, users) {
+  // Filtro por projeto
+  document.getElementById('filter-project')?.addEventListener('change', (e) => {
+    dashboardFilters.projectId = e.target.value;
+    renderDashboardContent();
+  });
+
+  // Filtro por analista
+  document.getElementById('filter-analyst')?.addEventListener('change', (e) => {
+    dashboardFilters.analystId = e.target.value;
+    renderDashboardContent();
+  });
+
+  // Filtro por status
+  document.getElementById('filter-status')?.addEventListener('change', (e) => {
+    dashboardFilters.status = e.target.value;
+    renderDashboardContent();
+  });
+
+  // Filtro por prioridade
+  document.getElementById('filter-priority')?.addEventListener('change', (e) => {
+    dashboardFilters.priority = e.target.value;
+    renderDashboardContent();
+  });
+
+  // Filtro por data inicial
+  document.getElementById('filter-date-start')?.addEventListener('change', (e) => {
+    dashboardFilters.dateStart = e.target.value;
+    renderDashboardContent();
+  });
+
+  // Filtro por data final
+  document.getElementById('filter-date-end')?.addEventListener('change', (e) => {
+    dashboardFilters.dateEnd = e.target.value;
+    renderDashboardContent();
+  });
+
+  // Filtros rápidos
+  document.getElementById('filter-overdue')?.addEventListener('change', (e) => {
+    dashboardFilters.showOverdue = e.target.checked;
+    renderDashboardContent();
+  });
+
+  document.getElementById('filter-no-date')?.addEventListener('change', (e) => {
+    dashboardFilters.showNoDate = e.target.checked;
+    renderDashboardContent();
+  });
+
+  document.getElementById('filter-no-analyst')?.addEventListener('change', (e) => {
+    dashboardFilters.showNoAnalyst = e.target.checked;
+    renderDashboardContent();
+  });
+}
+
+function renderDashboardContent() {
   const content = document.getElementById('page-content');
-  const stats = dataService.getDashboardStats(projectId);
   const projects = dataService.getProjects();
+  const users = dataService.getUsers();
   
+  // Obter estatísticas com filtros
+  const stats = getFilteredStats();
+  
+  // Obter projetos filtrados para a tabela
+  const filteredProjects = getFilteredProjects();
+  
+  // Obter workload filtrado
+  const workload = getFilteredWorkload();
+
+  // Gerar HTML dos filtros ativos
+  const activeFiltersHtml = renderActiveFilters();
+
   content.innerHTML = `
+    <!-- BARRA DE FILTROS -->
+    <div class="filter-bar" style="flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 160px;">
+        <span class="filter-label">Projeto</span>
+        <select id="filter-project" class="filter-select">
+          <option value="">Todos os Projetos</option>
+          ${projects.map(p => `<option value="${sanitize(p.id)}" ${dashboardFilters.projectId === p.id ? 'selected' : ''}>${sanitize(p.name)}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 160px;">
+        <span class="filter-label">Analista</span>
+        <select id="filter-analyst" class="filter-select">
+          <option value="">Todos os Analistas</option>
+          ${users.map(u => `<option value="${sanitize(u.id)}" ${dashboardFilters.analystId === u.id ? 'selected' : ''}>${sanitize(u.displayName)}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 140px;">
+        <span class="filter-label">Status</span>
+        <select id="filter-status" class="filter-select">
+          <option value="">Todos os Status</option>
+          ${[...new Set(projects.flatMap(p => dataService.getCardsByProject(p.id).map(c => c.status)))].sort().map(s => `<option value="${sanitize(s)}" ${dashboardFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 120px;">
+        <span class="filter-label">Prioridade</span>
+        <select id="filter-priority" class="filter-select">
+          <option value="">Todas</option>
+          <option value="highest" ${dashboardFilters.priority === 'highest' ? 'selected' : ''}>Crítica</option>
+          <option value="high" ${dashboardFilters.priority === 'high' ? 'selected' : ''}>Alta</option>
+          <option value="medium" ${dashboardFilters.priority === 'medium' ? 'selected' : ''}>Média</option>
+          <option value="low" ${dashboardFilters.priority === 'low' ? 'selected' : ''}>Baixa</option>
+          <option value="lowest" ${dashboardFilters.priority === 'lowest' ? 'selected' : ''}>Muito Baixa</option>
+        </select>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+        <span class="filter-label">Data Inicial</span>
+        <input type="date" id="filter-date-start" class="filter-input" value="${dashboardFilters.dateStart}">
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px;">
+        <span class="filter-label">Data Final</span>
+        <input type="date" id="filter-date-end" class="filter-input" value="${dashboardFilters.dateEnd}">
+      </div>
+    </div>
+    
+    <!-- FILTROS RÁPIDOS -->
+    <div class="filter-bar" style="gap: 16px; padding: 12px 16px;">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+        <input type="checkbox" id="filter-overdue" ${dashboardFilters.showOverdue ? 'checked' : ''} style="accent-color: var(--danger);">
+        <span style="color: ${dashboardFilters.showOverdue ? 'var(--danger)' : 'var(--text-secondary)'}">⚠️ Vencidos</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+        <input type="checkbox" id="filter-no-date" ${dashboardFilters.showNoDate ? 'checked' : ''} style="accent-color: var(--warning);">
+        <span style="color: ${dashboardFilters.showNoDate ? 'var(--warning)' : 'var(--text-secondary)'}">📅 Sem Data</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+        <input type="checkbox" id="filter-no-analyst" ${dashboardFilters.showNoAnalyst ? 'checked' : ''} style="accent-color: var(--accent);">
+        <span style="color: ${dashboardFilters.showNoAnalyst ? 'var(--accent)' : 'var(--text-secondary)'}">👤 Sem Analista</span>
+      </label>
+    </div>
+    
+    <!-- INDICADORES DE FILTROS ATIVOS -->
+    ${activeFiltersHtml ? `
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; padding: 8px 12px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--accent);">
+      <span style="font-size: 12px; color: var(--accent); font-weight: 600;">Filtros ativos:</span>
+      ${activeFiltersHtml}
+    </div>
+    ` : ''}
+    
+    <!-- VERIFICAÇÃO DE ESTADO VAZIO -->
+    ${stats.totalCards === 0 ? `
+    <div class="empty-state" style="padding: 60px; text-align: center;">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin-bottom: 16px;">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <h3 style="color: var(--text-primary); margin-bottom: 8px;">Nenhum dado encontrado</h3>
+      <p style="color: var(--text-muted);">Tente ajustar os filtros ou limpar para ver todos os dados.</p>
+    </div>
+    ` : `
+    
+    <!-- KPI GRID -->
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-label">Projetos Ativos</div>
@@ -85,14 +295,23 @@ function renderDashboardContent(projectId = null) {
       </div>
     </div>
 
+    <!-- CHARTS GRID -->
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Distribuição por Status</h3>
         <canvas id="statusChart"></canvas>
       </div>
       <div class="chart-card">
-        <h3>Carga de Trabalho por Analista</h3>
-        <canvas id="workloadChart"></canvas>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3>Carga de Trabalho por Analista</h3>
+          <select id="workload-project-select" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); padding: 6px 12px; border-radius: 6px; font-size: 12px;">
+            <option value="">Todos os Projetos</option>
+            ${projects.map(p => `<option value="${sanitize(p.key)}" ${selectedWorkloadProject === p.key ? 'selected' : ''}>${sanitize(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="workload-container" style="max-height: 300px; overflow-y: auto;">
+          ${renderWorkloadList(workload)}
+        </div>
       </div>
       <div class="chart-card chart-full">
         <h3>Progresso por Projeto</h3>
@@ -109,7 +328,7 @@ function renderDashboardContent(projectId = null) {
               </tr>
             </thead>
             <tbody>
-              ${projects.map(p => {
+              ${filteredProjects.map(p => {
                 const pStats = dataService.getProjectStats(p.id);
                 return `
                   <tr>
@@ -139,7 +358,7 @@ function renderDashboardContent(projectId = null) {
                       <span class="${pStats.overdue > 0 ? 'badge badge-overdue' : ''}">${pStats.overdue}</span>
                     </td>
                     <td>
-                      <button class="btn btn-secondary btn-sm" onclick="location.hash='#/projects/${sanitize(p.id)}'">Detalhes</button>
+                      <button class="btn btn-secondary btn-sm" onclick="location.hash='#/board?projectKey=${sanitize(p.key)}'">Ver no Kanban</button>
                     </td>
                   </tr>
                 `;
@@ -150,6 +369,7 @@ function renderDashboardContent(projectId = null) {
       </div>
     </div>
     
+    <!-- AUDIT SECTION -->
     <div class="audit-section">
       <div class="section-header">
         <h3>Auditoria de Saúde dos Dados</h3>
@@ -157,10 +377,10 @@ function renderDashboardContent(projectId = null) {
       </div>
       
       <div class="audit-grid">
-        ${renderAuditCard('Sem Analista', dataService.getDataHealthSummary(projectId).noAssignee, 'crítico para medir carga de trabalho')}
-        ${renderAuditCard('Sem Prioridade', dataService.getDataHealthSummary(projectId).noPriority, 'afeta a ordenação e foco')}
-        ${renderAuditCard('Sem Data Entrega', dataService.getDataHealthSummary(projectId).noDueDate, 'impede previsão de entrega')}
-        ${renderAuditCard('Em Progresso Sem Dono', dataService.getDataHealthSummary(projectId).stuckInProgress, 'tickets que podem estar parados')}
+        ${renderAuditCard('Sem Analista', stats.inconsistentData?.noAssignee || [], 'crítico para medir carga de trabalho')}
+        ${renderAuditCard('Sem Prioridade', stats.inconsistentData?.noPriority || [], 'afeta a ordenação e foco')}
+        ${renderAuditCard('Sem Data Entrega', stats.inconsistentData?.noDueDate || [], 'impede previsão de entrega')}
+        ${renderAuditCard('Em Progresso Sem Dono', stats.inconsistentData?.stuckInProgress || [], 'tickets que podem estar parados')}
       </div>
 
       <div class="table-container" style="margin-top: 20px;">
@@ -175,14 +395,258 @@ function renderDashboardContent(projectId = null) {
             </tr>
           </thead>
           <tbody>
-            ${renderInconsistentTableRows(projectId)}
+            ${renderInconsistentTableRows()}
           </tbody>
         </table>
       </div>
     </div>
+    `}
   `;
 
-  initCharts(projectId);
+  initCharts(stats, workload);
+  
+  // Listener para o seletor de projeto no gráfico de workload
+  document.getElementById('workload-project-select')?.addEventListener('change', (e) => {
+    selectedWorkloadProject = e.target.value;
+    // Recarregar com filtro de projeto específico
+    const newWorkload = selectedWorkloadProject 
+      ? getFilteredWorkload().filter(w => {
+          const cards = dataService.getCardsByProject(dataService.getProjects().find(p => p.key === selectedWorkloadProject)?.id);
+          return cards.some(c => c.assigneeId === w.user.id);
+        })
+      : getFilteredWorkload();
+    
+    document.getElementById('workload-container').innerHTML = renderWorkloadList(newWorkload);
+  });
+}
+
+/**
+ * Renderiza lista de carga de trabalho com scroll e tooltips
+ */
+function renderWorkloadList(workload) {
+  if (workload.length === 0) {
+    return '<div style="text-align: center; padding: 40px; color: var(--text-muted);">Nenhum dado de carga de trabalho para os filtros selecionados.</div>';
+  }
+  
+  // Ordenar por total de cards (maior primeiro)
+  const sorted = [...workload].sort((a, b) => b.total - a.total);
+  const maxTotal = Math.max(...sorted.map(w => w.total));
+  
+  return sorted.map(w => {
+    const percent = maxTotal > 0 ? Math.round((w.total / maxTotal) * 100) : 0;
+    const progressPercent = w.total > 0 ? Math.round((w.done / w.total) * 100) : 0;
+    
+    return `
+      <div class="workload-item" style="display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border); position: relative;" title="Total: ${w.total} | Andamento: ${w.inProgress} | Concluídos: ${w.done}">
+        <div style="min-width: 120px;">
+          <div style="font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;" title="${sanitize(w.user.displayName)}">
+            ${sanitize(w.user.displayName)}
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">${w.total} cards</div>
+        </div>
+        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+          <div style="flex: 1; height: 20px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; position: relative;">
+            <div style="width: ${percent}%; height: 100%; background: linear-gradient(90deg, var(--accent), #818cf8); border-radius: 4px; transition: width 0.3s ease;"></div>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+              ${w.total}
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px; min-width: 80px;">
+            <span class="badge badge-progress" style="font-size: 10px;" title="Em Andamento">${w.inProgress}</span>
+            <span class="badge badge-done" style="font-size: 10px;" title="Concluídos">${w.done}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * Obtém estatísticas filtradas com base nos filtros atuais
+ */
+function getFilteredStats() {
+  let cards = [...dataService.getCards()];
+  let projects = [...dataService.getProjects()];
+  
+  // Aplicar filtros
+  if (dashboardFilters.projectId) {
+    cards = cards.filter(c => c.projectId === dashboardFilters.projectId);
+    projects = projects.filter(p => p.id === dashboardFilters.projectId);
+  }
+  
+  if (dashboardFilters.analystId) {
+    cards = cards.filter(c => c.assigneeId === dashboardFilters.analystId);
+    // Filtrar projetos que têm cards do analista
+    const projectIdsWithAnalyst = [...new Set(cards.map(c => c.projectId))];
+    projects = projects.filter(p => projectIdsWithAnalyst.includes(p.id));
+  }
+  
+  if (dashboardFilters.status) {
+    cards = cards.filter(c => c.status === dashboardFilters.status);
+  }
+  
+  if (dashboardFilters.priority) {
+    cards = cards.filter(c => c.priority === dashboardFilters.priority);
+  }
+  
+  if (dashboardFilters.dateStart) {
+    const startDate = new Date(dashboardFilters.dateStart);
+    cards = cards.filter(c => c.dueDate && new Date(c.dueDate) >= startDate);
+  }
+  
+  if (dashboardFilters.dateEnd) {
+    const endDate = new Date(dashboardFilters.dateEnd);
+    cards = cards.filter(c => c.dueDate && new Date(c.dueDate) <= endDate);
+  }
+  
+  if (dashboardFilters.showOverdue) {
+    cards = cards.filter(c => isCardOverdue(c));
+  }
+  
+  if (dashboardFilters.showNoDate) {
+    cards = cards.filter(c => !c.dueDate);
+  }
+  
+  if (dashboardFilters.showNoAnalyst) {
+    cards = cards.filter(c => !c.assigneeId || c.assigneeId === 'unassigned');
+  }
+  
+  // Calcular estatísticas
+  const total = cards.length;
+  const byCategory = { todo: 0, in_progress: 0, done: 0, blocked: 0 };
+  const byPriority = { highest: 0, high: 0, medium: 0, low: 0, lowest: 0 };
+  let overdue = 0;
+  let inconsistent = 0;
+
+  cards.forEach(c => {
+    byCategory[resolveStatusCategory(c.status)]++;
+    if (byPriority[c.priority] !== undefined) byPriority[c.priority]++;
+    if (isCardOverdue(c)) overdue++;
+    if (c.isInconsistent) inconsistent++;
+  });
+
+  // Dados de auditoria filtrados
+  const inconsistentData = {
+    noAssignee: cards.filter(c => !c.assigneeId || c.assigneeId === 'unassigned'),
+    noPriority: cards.filter(c => !c.priority),
+    noDueDate: cards.filter(c => !c.dueDate),
+    stuckInProgress: cards.filter(c => c.status.toLowerCase().includes('progress') && (!c.assigneeId || c.assigneeId === 'unassigned')),
+    unknownStatus: cards.filter(c => c.status === 'Unknown')
+  };
+
+  return { 
+    totalProjects: projects.length, 
+    totalCards: total, 
+    byCategory, 
+    byPriority, 
+    overdue, 
+    inconsistent,
+    inconsistentData
+  };
+}
+
+/**
+ * Obtém projetos que têm cards após aplicação dos filtros
+ */
+function getFilteredProjects() {
+  let projects = [...dataService.getProjects()];
+  
+  if (dashboardFilters.projectId) {
+    projects = projects.filter(p => p.id === dashboardFilters.projectId);
+  }
+  
+  if (dashboardFilters.analystId) {
+    const cards = dataService.getCards().filter(c => c.assigneeId === dashboardFilters.analystId);
+    const projectIds = [...new Set(cards.map(c => c.projectId))];
+    projects = projects.filter(p => projectIds.includes(p.id));
+  }
+  
+  return projects;
+}
+
+/**
+ * Obtém workload filtrado por analista
+ */
+function getFilteredWorkload() {
+  let cards = [...dataService.getCards()];
+  const users = dataService.getUsers();
+  
+  // Aplicar filtros aos cards
+  if (dashboardFilters.projectId) {
+    cards = cards.filter(c => c.projectId === dashboardFilters.projectId);
+  }
+  
+  if (dashboardFilters.analystId) {
+    cards = cards.filter(c => c.assigneeId === dashboardFilters.analystId);
+  }
+  
+  if (dashboardFilters.status) {
+    cards = cards.filter(c => c.status === dashboardFilters.status);
+  }
+  
+  if (dashboardFilters.priority) {
+    cards = cards.filter(c => c.priority === dashboardFilters.priority);
+  }
+  
+  // Calcular workload por usuário
+  return users.map(u => {
+    const userCards = cards.filter(c => c.assigneeId === u.id);
+    return { 
+      user: u, 
+      total: userCards.length, 
+      inProgress: userCards.filter(c => resolveStatusCategory(c.status) === StatusCategory.IN_PROGRESS).length,
+      done: userCards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE).length
+    };
+  }).filter(w => w.total > 0);
+}
+
+/**
+ * Renderiza indicadores visuais dos filtros ativos
+ */
+function renderActiveFilters() {
+  const filters = [];
+  const projects = dataService.getProjects();
+  const users = dataService.getUsers();
+  
+  if (dashboardFilters.projectId) {
+    const p = projects.find(p => p.id === dashboardFilters.projectId);
+    if (p) filters.push(`<span class="badge" style="background: var(--accent-glow); color: var(--accent);">Projeto: ${sanitize(p.name)}</span>`);
+  }
+  
+  if (dashboardFilters.analystId) {
+    const u = users.find(u => u.id === dashboardFilters.analystId);
+    if (u) filters.push(`<span class="badge" style="background: var(--accent-glow); color: var(--accent);">Analista: ${sanitize(u.displayName)}</span>`);
+  }
+  
+  if (dashboardFilters.status) {
+    filters.push(`<span class="badge" style="background: var(--accent-glow); color: var(--accent);">Status: ${sanitize(dashboardFilters.status)}</span>`);
+  }
+  
+  if (dashboardFilters.priority) {
+    filters.push(`<span class="badge" style="background: var(--accent-glow); color: var(--accent);">Prioridade: ${priorityLabel(dashboardFilters.priority)}</span>`);
+  }
+  
+  if (dashboardFilters.dateStart) {
+    filters.push(`<span class="badge" style="background: var(--accent-glow); color: var(--accent);">De: ${formatDate(dashboardFilters.dateStart)}</span>`);
+  }
+  
+  if (dashboardFilters.dateEnd) {
+    filters.push(`<span class="badge" style="background: var(--accent-glow); color: var(--accent);">Até: ${formatDate(dashboardFilters.dateEnd)}</span>`);
+  }
+  
+  if (dashboardFilters.showOverdue) {
+    filters.push(`<span class="badge" style="background: rgba(239,68,68,0.2); color: #ef4444;">⚠️ Vencidos</span>`);
+  }
+  
+  if (dashboardFilters.showNoDate) {
+    filters.push(`<span class="badge" style="background: rgba(245,158,11,0.2); color: #f59e0b;">📅 Sem Data</span>`);
+  }
+  
+  if (dashboardFilters.showNoAnalyst) {
+    filters.push(`<span class="badge" style="background: rgba(99,102,241,0.2); color: var(--accent);">👤 Sem Analista</span>`);
+  }
+  
+  return filters.join('');
 }
 
 function renderAuditCard(title, list, tooltip) {
@@ -204,8 +668,10 @@ function renderAuditCard(title, list, tooltip) {
   `;
 }
 
-function renderInconsistentTableRows(projectId) {
-  const summary = dataService.getDataHealthSummary(projectId);
+function renderInconsistentTableRows() {
+  const stats = getFilteredStats();
+  const summary = stats.inconsistentData;
+  
   const allInconsistent = new Set([
     ...summary.noAssignee,
     ...summary.noPriority,
@@ -247,61 +713,33 @@ function renderInconsistentTableRows(projectId) {
   }).join('');
 }
 
-function initCharts(projectId) {
-  const stats = dataService.getDashboardStats(projectId);
-  const workload = dataService.getWorkloadByAnalyst(projectId);
-
+function initCharts(stats, workload) {
   // Destruir gráficos anteriores se existirem
   if (dashboardChart) dashboardChart.destroy();
   if (projectDistributionChart) projectDistributionChart.destroy();
 
-  const ctxStatus = document.getElementById('statusChart').getContext('2d');
-  dashboardChart = new Chart(ctxStatus, {
-    type: 'doughnut',
-    data: {
-      labels: ['A Fazer', 'Em Andamento', 'Concluído', 'Bloqueado'],
-      datasets: [{
-        data: [stats.byCategory.todo, stats.byCategory.in_progress, stats.byCategory.done, stats.byCategory.blocked],
-        backgroundColor: [STATUS_COLORS.todo, STATUS_COLORS.in_progress, STATUS_COLORS.done, STATUS_COLORS.blocked],
-        borderWidth: 0,
-        hoverOffset: 4
-      }]
-    },
-    options: {
-      plugins: {
-        legend: { position: 'bottom', labels: { color: '#9ca3b8', padding: 20, font: { size: 11 } } }
+  const ctxStatus = document.getElementById('statusChart')?.getContext('2d');
+  if (ctxStatus && stats.totalCards > 0) {
+    dashboardChart = new Chart(ctxStatus, {
+      type: 'doughnut',
+      data: {
+        labels: ['A Fazer', 'Em Andamento', 'Concluído', 'Bloqueado'],
+        datasets: [{
+          data: [stats.byCategory.todo, stats.byCategory.in_progress, stats.byCategory.done, stats.byCategory.blocked],
+          backgroundColor: [STATUS_COLORS.todo, STATUS_COLORS.in_progress, STATUS_COLORS.done, STATUS_COLORS.blocked],
+          borderWidth: 0,
+          hoverOffset: 4
+        }]
       },
-      cutout: '70%'
-    }
-  });
-
-  const ctxWorkload = document.getElementById('workloadChart').getContext('2d');
-  projectDistributionChart = new Chart(ctxWorkload, {
-    type: 'bar',
-    data: {
-      labels: workload.map(w => w.user.displayName),
-      datasets: [
-        {
-          label: 'Em Andamento',
-          data: workload.map(w => w.inProgress),
-          backgroundColor: STATUS_COLORS.in_progress,
+      options: {
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#9ca3b8', padding: 20, font: { size: 11 } } }
         },
-        {
-          label: 'Total de Cards',
-          data: workload.map(w => w.total),
-          backgroundColor: 'rgba(148, 163, 184, 0.2)',
-        }
-      ]
-    },
-    options: {
-      indexAxis: 'y',
-      scales: {
-        x: { stacked: false, grid: { display: false }, ticks: { color: '#9ca3b8' } },
-        y: { stacked: false, grid: { display: false }, ticks: { color: '#9ca3b8' } }
-      },
-      plugins: {
-        legend: { position: 'bottom', labels: { color: '#9ca3b8', font: { size: 11 } } }
+        cutout: '70%'
       }
-    }
-  });
+    });
+  }
+
+  // O gráfico de workload foi substituído por uma lista com scroll e tooltips
+  //see renderWorkloadList() acima
 }

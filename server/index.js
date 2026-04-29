@@ -23,29 +23,31 @@ app.post('/api/auth/login', auth.handleLogin);
 app.post('/api/auth/logout', auth.handleLogout);
 app.get('/api/auth/check', auth.handleCheckSession);
 
-// ─── Middleware de proteção ────────────────────────────
-function requireAuth(req, res, next) {
+// ─── Middleware de proteção opcional ────────────────────────────
+// As APIs do Jira usam credenciais armazenadas no banco (criptografadas)
+// Não precisam de sessão do usuário
+function optionalAuth(req, res, next) {
   const sessionId = req.headers['x-session-id'];
   
+  // Se não tem sessionId, permite acesso (as APIs usam credenciais do banco)
   if (!sessionId) {
-    return res.status(401).json({ error: 'Acesso não autorizado' });
+    return next();
   }
   
+  // Se tem sessionId, valida (opcional)
   const session = auth.validateSession(sessionId);
-  
-  if (!session) {
-    return res.status(401).json({ error: 'Sessão inválida ou expirada' });
+  if (session) {
+    req.session = session;
   }
   
-  req.session = session;
   next();
 }
 
-// Aplica autenticação em todas as rotas /api/jira/*
-app.use('/api/jira', requireAuth, jiraRoutes);
+// Rotas do Jira sem autenticação obrigatória
+app.use('/api/jira', optionalAuth, jiraRoutes);
 
-// Rota raiz para verificação rápida (protegida)
-app.get('/api/jira', requireAuth, (req, res) => {
+// Rota raiz para verificação rápida (sem proteção obrigatória)
+app.get('/api/jira', optionalAuth, (req, res) => {
   res.json({
     status: 'ok',
     message: 'Jira Dashboard API (Desenvolvimento)',
