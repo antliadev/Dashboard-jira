@@ -263,9 +263,14 @@ class DataService {
       console.error('[DataService] Erro ao carregar dados do Jira:', error.message);
       this._apiStatus = 'error';
       
-      if (this._cards.length === 0) {
-        this.loadMockData();
-      }
+      // NÃO carregar mock automaticamente - deixa vazio se não houver dados
+      // O usuário deve sincronizar explicitamente
+      this._projects = [];
+      this._cards = [];
+      this._users = [];
+      this._source = DataSourceType.EMPTY;
+      this._notify();
+      
       throw error;
     }
   }

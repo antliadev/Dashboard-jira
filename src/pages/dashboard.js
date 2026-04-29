@@ -269,7 +269,8 @@ function renderDashboardContent() {
         <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
       </svg>
       <h3 style="color: var(--text-primary); margin-bottom: 8px;">Nenhum dado encontrado</h3>
-      <p style="color: var(--text-muted);">Tente ajustar os filtros ou limpar para ver todos os dados.</p>
+      <p style="color: var(--text-muted);">Configure as credenciais do Jira na página Dados e clique em Sincronizar.</p>
+      <button class="btn btn-primary" onclick="location.hash='#/data'" style="margin-top: 16px;">Ir para Dados</button>
     </div>
     ` : `
     
