@@ -8,6 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jiraRoutes from './routes/jira.js';
+import * as auth from './auth.js';
 
 dotenv.config();
 
@@ -16,6 +17,11 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Rotas de autenticação
+app.post('/api/auth/login', auth.handleLogin);
+app.post('/api/auth/logout', auth.handleLogout);
+app.get('/api/auth/check', auth.handleCheckSession);
 
 // Todas as rotas Jira
 app.use('/api/jira', jiraRoutes);

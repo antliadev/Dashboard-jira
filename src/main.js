@@ -2,7 +2,7 @@
  * main.js — Ponto de entrada da aplicação
  */
 import './styles/main.css';
-import { initRouter, registerRoute, setNotFound } from './utils/router.js';
+import { initRouter, registerRoute, setNotFound, getRoutePath } from './utils/router.js';
 import { renderSidebar } from './components/sidebar.js';
 import { dataService } from './data/data-service.js';
 
@@ -14,10 +14,15 @@ import { renderAnalysts } from './pages/analysts.js';
 import { renderData } from './pages/data.js';
 import { renderBoard } from './pages/board.js';
 import { renderExecutive } from './pages/executive.js';
+import { renderLogin } from './pages/login.js';
+
+// Rotas públicas (não requerem autenticação)
+const publicRoutes = ['/login', '/data'];
 
 // ─── Configuração de Rotas ──────────────────────────────
 
 registerRoute('/', renderDashboard);
+registerRoute('/login', renderLogin);
 registerRoute('/projects', renderProjects);
 registerRoute('/cards', renderCards);
 registerRoute('/analysts', renderAnalysts);
@@ -46,11 +51,76 @@ setNotFound(() => {
   `;
 });
 
+// ─── Autenticação ────────────────────────────────────
+
+async function checkAuth() {
+  const sessionId = localStorage.getItem('sessionId');
+  const currentPath = getRoutePath();
+  
+  // Se já está na página de login, não precisa verificar
+  if (currentPath === '/login') {
+    return true;
+  }
+  
+  // Se é rota pública, permite acesso
+  if (publicRoutes.includes(currentPath)) {
+    return true;
+  }
+  
+  // Se não tem sessão, redireciona para login
+  if (!sessionId) {
+    window.location.hash = '#/login';
+    return false;
+  }
+  
+  // Verifica sessão com o servidor
+  try {
+    const response = await fetch('/api/auth/check', {
+      headers: {
+        'x-session-id': sessionId
+      }
+    });
+    
+    if (!response.ok) {
+      // Sessão inválida ou expirada
+      localStorage.removeItem('sessionId');
+      window.location.hash = '#/login';
+      return false;
+    }
+    
+    const data = await response.json();
+    
+    if (!data.authenticated) {
+      localStorage.removeItem('sessionId');
+      window.location.hash = '#/login';
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    // Erro de rede, considera não autenticado
+    localStorage.removeItem('sessionId');
+    window.location.hash = '#/login';
+    return false;
+  }
+}
+
 // ─── Inicialização ────────────────────────────────────
 
 async function initApp() {
   // Renderizar componentes estáticos
   renderSidebar();
+
+  // Verificar autenticação primeiro
+  const isAuthenticated = await checkAuth();
+  
+  // Se não autenticado e não é rota pública, o checkAuth já redirecionou
+  if (!isAuthenticated) {
+    const currentPath = getRoutePath();
+    if (currentPath !== '/login') {
+      return;
+    }
+  }
 
   // Inicializar roteador
   initRouter();
