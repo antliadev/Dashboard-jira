@@ -18,42 +18,30 @@ import { isConfigured, supabase } from '../../lib/supabaseServer.js';
  * - false: acesso bloqueado (resposta já enviada)
  */
 export async function verifyAuth(req, res) {
-  // Se não está em produção Vercel, permite tudo (dev mode)
-  const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-  const IS_PRODUCTION = process.env.NODE_ENV === 'production' || IS_VERCEL;
-  
-  if (!IS_PRODUCTION) {
-    return true;
-  }
-
   // Se Supabase não está configurado, permitir acesso temporariamente
   // Isso permite que a página de dados funcione para configurar credenciais
+  // sem necessidade de variáveis de ambiente configuradas no Vercel
   if (!isConfigured || !supabase) {
-    console.warn('[verifyAuth] Supabase não configurado - permitindo acesso temporário para configuração');
     return true;
   }
 
-  // 1) Verificar se há credenciais do Jira configuradas
-  // Se sim, o sistema funciona como "acesso público" baseado nas credenciais do banco
+  // Se Supabase está configurado, verificar credenciais do Jira
   let conn = null;
   try {
     conn = await configService.getActiveConnection();
   } catch (e) {
-    console.warn('[verifyAuth] Erro ao buscar conexão:', e.message);
+    // Erro ao buscar conexão - permitir acesso
+    return true;
   }
   
   if (conn && conn.baseUrl && conn.email && conn.token) {
-    // Há credenciais do Jira configuradas - acesso permitido
     return true;
   }
 
-  // 2) Se não há credenciais, verificar sessão do usuário
+  // Sem credenciais do Jira, verificar sessão do usuário
   const sessionId = req.headers['x-session-id'];
-  
-  // Se tem sessão, verificar se é válida
   if (sessionId) {
     try {
-      // Verificar no endpoint de auth
       const authResponse = await fetch(`${req.protocol}://${req.get('host')}/api/auth?check=1`, {
         method: 'GET',
         headers: { 'x-session-id': sessionId }
@@ -66,21 +54,20 @@ export async function verifyAuth(req, res) {
         }
       }
     } catch (e) {
-      // Erro ao verificar - fallback para permitir em caso de falha de rede
-      console.warn('[verifyAuth] Erro ao verificar sessão:', e.message);
+      // Erro ao verificar - permitir acesso
+      return true;
     }
   }
 
-  // 3) Sem credenciais e sem sessão válida - bloquear acesso
-  // Mas permitir acesso à rota /api/jira/config para configurar
+  // Verificar se é rota de configuração
   const path = req.url || '';
   if (path.includes('/config') || path.includes('/test-connection')) {
-    return true; // Permite configuração inicial sem login
+    return true;
   }
 
   res.status(401).json({ 
     error: 'Acesso não autorizado',
-    message: 'Configure as credenciais do Jira ou faça login para acessar os dados.'
+    message: 'Configure as credenciais do Jira ou faça login.'
   });
   
   return false;
