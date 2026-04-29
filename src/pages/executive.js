@@ -292,30 +292,24 @@ function renderExecutiveContent(projectKey) {
           <div class="executive-column">
             
             <!-- 1. STATUS GERAL -->
-            <div class="executive-card executive-status-card" style="border-color: ${health.bg}; box-shadow: 0 4px 24px ${health.glow}, inset 0 0 40px ${health.light}">
-              <div class="executive-status-content">
+            <div class="executive-card executive-status-card" style="border-color: var(--border); box-shadow: 0 4px 24px rgba(0,0,0,0.2);">
+              <div class="executive-status-content" style="align-items: center; justify-content: flex-start; gap: 24px;">
                 <div class="executive-progress-ring">
                   <svg viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="42" fill="none" stroke="#1F2937" stroke-width="8"/>
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="${health.bg}" stroke-width="8" 
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--accent)" stroke-width="8" 
                       stroke-dasharray="${progressPercent * 2.64} 264" stroke-linecap="round" 
                       transform="rotate(-90 50 50)">
                       <animate attributeName="stroke-dasharray" from="0 264" to="${progressPercent * 2.64} 264" dur="1s" fill="freeze"/>
                     </circle>
                   </svg>
                   <div class="executive-progress-text">
-                    <span class="executive-percent" style="color: ${health.bg}">${progressPercent}%</span>
-                    <span class="executive-label">concluído</span>
+                    <span class="executive-percent" style="color: var(--text-primary)">${progressPercent}%</span>
+                    <span class="executive-label" style="color: var(--text-muted)">concluído</span>
                   </div>
                 </div>
                 <div class="executive-status-info">
-                  <div class="executive-status-label" style="color: ${health.bg}">${healthLabel.toUpperCase()}</div>
-                  <div class="executive-status-desc">Porcentagem de Conclusão</div>
-                  <div class="executive-traffic-mini">
-                    <span class="executive-traffic-dot ${healthStatus === 'green' ? 'active' : ''}" style="background: #22C55E"></span>
-                    <span class="executive-traffic-dot ${healthStatus === 'yellow' ? 'active' : ''}" style="background: #F59E0B"></span>
-                    <span class="executive-traffic-dot ${healthStatus === 'red' ? 'active' : ''}" style="background: #EF4444"></span>
-                  </div>
+                  <div class="executive-status-label" style="color: var(--text-primary); font-size: 1.1rem; font-weight: 500;">Porcentagem de Conclusão</div>
                 </div>
               </div>
             </div>
