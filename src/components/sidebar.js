@@ -14,7 +14,7 @@ const ICONS = {
 };
 
 export function renderSidebar() {
-  const source = dataService.source;
+  const source = dataService?.source || 'mock';
   const sidebar = document.getElementById('sidebar');
   sidebar.innerHTML = `
     <div class="sidebar-header" role="banner">
