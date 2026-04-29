@@ -23,6 +23,10 @@ export function getCurrentRoute() {
   return currentRoute;
 }
 
+export function getRoutePath() {
+  return window.location.hash.replace(/^#\/?/, '/') || '/';
+}
+
 function matchRoute(hash) {
   const path = hash.replace(/^#\/?/, '/') || '/';
   
