@@ -7,13 +7,12 @@
     "dev": "vite",
     "dev:all": "concurrently \"npm run dev:server\" \"npm run dev\"",
     "dev:server": "node server/index.js",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "typescript": "~6.0.2",
     "vite": "^8.0.10"
   },
   "dependencies": {
