@@ -105,22 +105,44 @@ async function checkAuth() {
   }
 }
 
+// ─── Layout do Sistema ──────────────────────────────────
+
+let isAuthenticated = false;
+
+function updateLayout(authenticated) {
+  isAuthenticated = authenticated;
+  const sidebar = document.getElementById('sidebar');
+  
+  if (authenticated) {
+    // Usuário autenticado - mostrar sidebar e layout normal
+    sidebar?.classList.remove('hidden');
+    document.body.classList.remove('login-only');
+  } else {
+    // Não autenticado - ocultar sidebar
+    sidebar?.classList.add('hidden');
+    document.body.classList.add('login-only');
+  }
+}
+
+// Expor globalmente para uso em outras páginas
+window.updateLayout = updateLayout;
+
 // ─── Inicialização ────────────────────────────────────
 
 async function initApp() {
-  // Renderizar componentes estáticos
-  renderSidebar();
-
-  // Verificar autenticação primeiro
-  const isAuthenticated = await checkAuth();
+  // Verificar autenticação PRIMEIRO, antes de renderizar qualquer coisa
+  const authenticated = await checkAuth();
   
-  // Se não autenticado e não é rota pública, o checkAuth já redirecionou
-  if (!isAuthenticated) {
-    const currentPath = getRoutePath();
-    if (currentPath !== '/login') {
-      return;
-    }
+  if (!authenticated) {
+    // Não autenticado - mostrar apenas página de login sem sidebar
+    updateLayout(false);
+    initRouter();
+    return;
   }
+  
+  // Autenticado - mostrar layout completo
+  updateLayout(true);
+  renderSidebar();
 
   // Inicializar roteador
   initRouter();

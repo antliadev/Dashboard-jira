@@ -1276,3 +1276,11 @@ input, select, textarea { font-family: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Login - Layout Isolado */
+body.login-only .sidebar { display: none !important; }
+body.login-only .main-content { margin-left: 0 !important; }
+body.login-only .page-header { display: none !important; }
+
+/* Sidebar hidden utility */
+.sidebar.hidden { display: none !important; }
