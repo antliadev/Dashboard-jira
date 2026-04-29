@@ -1,8 +1,8 @@
 /**
- * api/jira/cache.js — Limpa cache/status de sync
+ * api/jira/cache/clear.js — Limpa cache/status de sync
  */
-import { configService } from '../../lib/configService.js';
-import { isConfigured, supabase } from '../../lib/supabaseServer.js';
+import { configService } from '../../../lib/configService.js';
+import { isConfigured, supabase } from '../../../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   // Suporte a CORS Preflight
