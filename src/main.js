@@ -40,7 +40,7 @@ async function loadPage(path) {
 }
 
 // Rotas públicas (não requerem autenticação)
-const publicRoutes = ['/login', '/data'];
+const publicRoutes = ['/login'];
 
 // ─── Configuração de Rotas ──────────────────────────────
 
@@ -121,7 +121,7 @@ function clearSession() {
   localStorage.removeItem('sessionId');
 }
 
-// Guard do router - autenticação opcional
+// Guard do router — login OBRIGATÓRIO
 async function authGuard(path) {
   // Se é rota pública, permite
   if (publicRoutes.includes(path)) {
@@ -130,62 +130,33 @@ async function authGuard(path) {
 
   // Verifica se tem sessão local
   const sessionId = getSessionId();
-  
+
   if (!sessionId) {
-    // Sem sessão - tenta verificar se há credenciais do Jira configuradas
-    // Se tiver, permite acesso (sistema usa credenciais do banco, não login)
-    try {
-      const response = await fetch('/api/jira/config', { 
-        headers: { 'Content-Type': 'application/json' } 
-      });
-      if (response.ok) {
-        const config = await response.json();
-        if (config.isConfigured) {
-          // Há credenciais do Jira - permite acesso
-          return true;
-        }
-      }
-    } catch (e) {
-      // Erro ao buscar config - permite acesso em modo dev
-      console.warn('Auth: erro ao verificar config, permitindo acesso');
-    }
-    
-    // Não tem credenciais - redireciona para login
+    // Sem sessão — redireciona para login
     window.location.hash = '#/login';
     return false;
   }
 
-  // Tem sessão - verifica com servidor
+  // Tem sessão — valida com servidor
   try {
-    const response = await fetch('/api/auth?check=1', {
+    const response = await fetch('/api/auth', {
       method: 'GET',
       headers: { 'x-session-id': sessionId }
     });
-    
+
     const data = await response.json();
-    
+
     if (data.authenticated) {
       return true;
-    } else {
-      // Sessão inválida - tenta verificar credenciais do Jira
-      try {
-        const configRes = await fetch('/api/jira/config');
-        if (configRes.ok) {
-          const config = await configRes.json();
-          if (config.isConfigured) {
-            clearSession();
-            return true;
-          }
-        }
-      } catch (e) {}
-      
-      clearSession();
-      window.location.hash = '#/login';
-      return false;
     }
+
+    // Sessão inválida — limpar e redirecionar
+    clearSession();
+    window.location.hash = '#/login';
+    return false;
   } catch (err) {
-    // Erro de rede - permite acesso (fallback)
-    console.warn('Auth: erro de rede, permitindo acesso');
+    // Erro de rede — permitir acesso local (dev)
+    console.warn('[Auth] Erro de rede ao verificar sessão, permitindo acesso');
     return true;
   }
 }
