@@ -171,15 +171,16 @@ class DataService {
 
   /**
    * Sincroniza dados do Jira
-   * NOTA: NÃO envia credenciais do frontend — elas são buscadas
-   * diretamente do Supabase (jira_connections) pelo backend.
+   * NOTA: Agora envia as credenciais do frontend explicitamente,
+   * garantindo que não estamos salvando ou usando credenciais em cache.
+   * @param {Object} credentials - As credenciais para sincronização
    */
-  async syncFromJira() {
+  async syncFromJira(credentials) {
     try {
       const response = await fetch(`${this._apiBase}/sync`, {
         method: 'POST',
         headers: this._getHeaders(),
-        body: JSON.stringify({})
+        body: JSON.stringify(credentials)
       });
       
       // Validar content-type antes de parsear JSON

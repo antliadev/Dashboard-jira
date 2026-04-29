@@ -1,38 +1,32 @@
 /**
- * test-connection.js — Testa conexão com Jira Cloud
+ * api/jira/test-connection.js — Testa conexão com Jira Cloud (RECONSTRUÍDO)
  *
- * Aceita credenciais no body ou busca do Supabase (jira_connections).
- * Usa a função testJiraConnection do lib/jiraService.js.
+ * REGRAS:
+ * - Credenciais DEVEM vir no body do request
+ * - NÃO busca credenciais do banco
+ * - Apenas testa, NÃO persiste nada
  */
-import { configService } from '../../lib/configService.js';
 import { testJiraConnection } from '../../lib/jiraService.js';
 
 export default async function handler(req, res) {
-  // Suporte a CORS Preflight
+  // CORS Preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido. Use POST.' });
   }
 
+  // NÃO exige verifyAuth — o teste de conexão pode ser feito sem login
+  // (o usuário precisa testar ANTES de sincronizar)
+
   try {
-    let { baseUrl, email, token, jql } = req.body || {};
+    const { baseUrl, email, token, jql } = req.body || {};
 
-    // Se credenciais não foram fornecidas no body, buscar do Supabase
-    if (!baseUrl || !email || !token) {
-      const conn = await configService.getActiveConnection();
-      if (conn) {
-        baseUrl = baseUrl || conn.baseUrl;
-        email   = email   || conn.email;
-        token   = token   || conn.token;
-        jql     = jql     || conn.jql;
-      }
-    }
-
-    // Validação mínima antes de chamar a API
+    // Validação: credenciais obrigatórias no body
     if (!baseUrl) {
-      return res.status(400).json({ success: false, error: 'URL do Jira é obrigatória. Configure na página Dados.' });
+      return res.status(400).json({ success: false, error: 'URL do Jira é obrigatória.' });
     }
     if (!email) {
       return res.status(400).json({ success: false, error: 'Email é obrigatório.' });

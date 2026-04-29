@@ -1,6 +1,7 @@
 import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
 import { countIssuesInDatabase } from '../../lib/jiraService.js';
 import { configService } from '../../lib/configService.js';
+import { verifyAuth } from '../auth/verify.js';
 
 // Lazy import para Supabase - evitar erro se não configurado
 async function getSupabaseStatus() {
@@ -21,6 +22,10 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
+
+  // Verificar autenticação
+  const isAuthed = await verifyAuth(req, res);
+  if (!isAuthed) return;
 
   // Garantir que não haja cache para refletir mudanças globais imediatamente
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

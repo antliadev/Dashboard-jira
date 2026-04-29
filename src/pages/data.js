@@ -321,28 +321,20 @@ function setupEventListeners() {
     try {
       const configData = getFormData();
       
-      // Verificar se o usuário forneceu dados ou se vai usar as salvas
-      const usingSavedCredentials = !configData.baseUrl && !configData.email && !configData.token;
-      
-      if (usingSavedCredentials && !config?.isConfigured) {
-        testResult = { success: false, error: 'Nenhuma credencial fornecida e nenhuma credencial salva encontrada.' };
+      // Validação obrigatória
+      if (!configData.baseUrl || !configData.email || !configData.token) {
+        testResult = { success: false, error: 'Preencha URL, Email e Token para validar a conexão.' };
         renderDataContent();
         return;
       }
       
-      if (usingSavedCredentials && config?.isConfigured) {
-        // Usuário não forneceu dados, vai usar as salvas
-        console.log('[DataPage] Validando credenciais salvas no Supabase...');
-      } else {
-        // Usuário forneceu dados no formulário
-        console.log('[DataPage] Validando credenciais do formulário...');
-      }
+      console.log('[DataPage] Validando credenciais do formulário...');
       
       testResult = await dataService.testConnection(configData);
       
       // Adicionar informação sobre o que foi validado
       if (testResult.success) {
-        testResult.validatedWith = usingSavedCredentials ? 'saved' : 'form';
+        testResult.validatedWith = 'form';
       }
       
       renderDataContent();
@@ -355,36 +347,9 @@ function setupEventListeners() {
     }
   });
 
-  // Salvar configuração - apenas se pode editar
-  if (canEdit) {
-    document.getElementById('btn-save-config')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btn-save-config');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Salvando...';
-      
-      try {
-        const configData = getFormData();
-        
-        if (!configData.baseUrl || !configData.email || !configData.token) {
-          alert('Preencha URL, Email e Token obrigatórios!');
-          renderDataContent();
-          return;
-        }
-        
-        await dataService.saveConfig(configData);
-        config = await dataService.loadConfig();
-        syncStatus = await dataService.getSyncStatus();
-        
-        alert('Configuração global salva com sucesso!');
-        renderDataContent();
-      } catch (error) {
-        alert('Erro ao salvar: ' + error.message);
-        renderDataContent();
-      }
-    });
-  }
 
-  // Sincronizar (Salva + Sincroniza)
+
+  // Sincronizar Global
   document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
     if (syncStatus?.lastSyncStatus === 'running') return;
     
@@ -409,23 +374,18 @@ function setupEventListeners() {
     try {
       const configData = getFormData();
       
-      // 1. Salvar configuração primeiro (se houver email/token preenchidos)
-      if (configData.email && configData.token) {
-        log('Salvando credenciais no Supabase...');
-        await dataService.saveConfig(configData);
-        log('Credenciais salvas com sucesso.');
-      } else if (!config?.isConfigured) {
-        alert('Preencha Email e Token para realizar a primeira sincronização!');
+      // Validação obrigatória
+      if (!configData.baseUrl || !configData.email || !configData.token) {
+        alert('Preencha URL, Email e Token para realizar a sincronização!');
         btn.disabled = false;
         btn.innerHTML = originalContent;
         return;
       }
 
-      // 2. Iniciar sincronização com timeout de segurança
+      // Iniciar sincronização enviando as credenciais no body
       log('Solicitando carga de dados ao Jira (isso pode levar até 60s)...', '#00ff00');
       
-      // Criamos uma promessa com timeout para não travar a UI
-      const syncPromise = dataService.syncFromJira();
+      const syncPromise = dataService.syncFromJira(configData);
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Tempo limite excedido. A sincronização continuará rodando no servidor.')), 55000)
       );
@@ -442,11 +402,9 @@ function setupEventListeners() {
         }
       }
       
-      // 3. Atualizar status local
+      // Atualizar status local e UI
       syncStatus = await dataService.getSyncStatus();
-      
-      // 4. Mostrar sucesso claro
-      alert(`Dados sincronizados para todos!\n\nTickets: ${result.totalIssues}\nProjetos: ${result.totalProjects}`);
+      alert(`Dados sincronizados para todos!`);
       
       // 5. Recarregar dados para o dashboard
       log('Recarregando cache local...');
