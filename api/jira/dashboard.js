@@ -1,18 +1,22 @@
 import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
 import { countIssuesInDatabase } from '../../lib/jiraService.js';
 import { configService } from '../../lib/configService.js';
-import { verifyAuth } from '../../auth/verify.js';
-import { isConfigured, supabase } from '../../lib/supabaseServer.js';
+
+// Lazy import para Supabase - evitar erro se não configurado
+async function getSupabaseStatus() {
+  try {
+    const { isConfigured, supabase } = await import('../../lib/supabaseServer.js');
+    return { isConfigured, supabase };
+  } catch (e) {
+    return { isConfigured: false, supabase: null };
+  }
+}
 
 export default async function handler(req, res) {
   // Suporte a CORS Preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-
-  // Verificar autenticação
-  const isAuth = await verifyAuth(req, res);
-  if (!isAuth) return;
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
@@ -25,6 +29,8 @@ export default async function handler(req, res) {
 
   try {
     // Verificar se Supabase está configurado
+    const { isConfigured, supabase } = await getSupabaseStatus();
+    
     if (!isConfigured || !supabase) {
       return res.status(200).json({
         totalIssues: 0,

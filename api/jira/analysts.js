@@ -2,19 +2,25 @@
  * analysts.js — Retorna analistas distintos do banco
  */
 import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
-import { verifyAuth } from '../../auth/verify.js';
-import { isConfigured, supabase } from '../../lib/supabaseServer.js';
+
+// Lazy import para Supabase
+async function getSupabaseStatus() {
+  try {
+    const { isConfigured, supabase } = await import('../../lib/supabaseServer.js');
+    return { isConfigured, supabase };
+  } catch (e) {
+    return { isConfigured: false, supabase: null };
+  }
+}
 
 export default async function handler(req, res) {
-  // Verificar autenticação
-  const isAuth = await verifyAuth(req, res);
-  if (!isAuth) return;
-
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   // Verificar se Supabase está configurado
+  const { isConfigured, supabase } = await getSupabaseStatus();
+  
   if (!isConfigured || !supabase) {
     return res.status(200).json([]);
   }
