@@ -3,8 +3,13 @@
  * Suporta filtros: project, status, assignee, priority, type
  */
 import { fetchIssuesFromDatabase } from '../../lib/jiraService.js';
+import { verifyAuth } from '../../auth/verify.js';
 
 export default async function handler(req, res) {
+  // Verificar autenticação
+  const isAuth = await verifyAuth(req, res);
+  if (!isAuth) return;
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
   }

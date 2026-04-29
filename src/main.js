@@ -1,8 +1,9 @@
 /**
  * main.js — Ponto de entrada da aplicação
+ * Com sistema robusto de autenticação
  */
 import './styles/main.css';
-import { initRouter, registerRoute, setNotFound, getRoutePath } from './utils/router.js';
+import { initRouter, registerRoute, setNotFound, getRoutePath, setAuthGuard } from './utils/router.js';
 import { renderSidebar } from './components/sidebar.js';
 import { dataService } from './data/data-service.js';
 
@@ -33,7 +34,6 @@ registerRoute('/executive/:projectKey', renderExecutive);
 
 // Rotas de detalhe (Placeholders para futura expansão)
 registerRoute('/projects/:id', (params) => {
-  // Renderiza a listagem de cards filtrada por projeto como visão de detalhe inicial
   window.location.hash = `#/cards?projectId=${params.id}`;
 });
 
@@ -51,29 +51,44 @@ setNotFound(() => {
   `;
 });
 
-// ─── Autenticação ────────────────────────────────────
+// ─── Sistema de Autenticação Robusto ─────────────────────
 
-async function checkAuth() {
+// Estado global de autenticação
+let authState = {
+  isAuthenticated: false,
+  sessionId: null,
+  checking: false
+};
+
+/**
+ * Verifica autenticação de forma robusta:
+ * 1. Primeiro verifica localStorage (síncrono, rápido)
+ * 2. Depois verifica com servidor (assíncrono)
+ * 3. Bloqueia navegação se não autenticado
+ */
+async function verifyAuth(path) {
+  // Se já está verificando, não deixa passar
+  if (authState.checking) {
+    return false;
+  }
+
+  // Se é rota pública, permite
+  if (publicRoutes.includes(path)) {
+    return true;
+  }
+
+  // Verificação local primeiro (síncrona)
   const sessionId = localStorage.getItem('sessionId');
-  const currentPath = getRoutePath();
   
-  // Se já está na página de login, não precisa verificar
-  if (currentPath === '/login') {
-    return true;
-  }
-  
-  // Se é rota pública, permite acesso
-  if (publicRoutes.includes(currentPath)) {
-    return true;
-  }
-  
-  // Se não tem sessão, redireciona para login
   if (!sessionId) {
+    // Sem sessão - redireciona para login
     window.location.hash = '#/login';
     return false;
   }
+
+  // Tem sessão local - verifica com servidor
+  authState.checking = true;
   
-  // Verifica sessão com o servidor
   try {
     const response = await fetch('/api/auth/check', {
       headers: {
@@ -81,99 +96,119 @@ async function checkAuth() {
       }
     });
     
-    if (!response.ok) {
-      // Sessão inválida ou expirada
-      localStorage.removeItem('sessionId');
-      window.location.hash = '#/login';
-      return false;
-    }
-    
     const data = await response.json();
+    authState.checking = false;
     
-    if (!data.authenticated) {
+    if (data.authenticated) {
+      authState.isAuthenticated = true;
+      authState.sessionId = sessionId;
+      return true;
+    } else {
+      // Sessão inválida no servidor
       localStorage.removeItem('sessionId');
       window.location.hash = '#/login';
       return false;
     }
-    
-    return true;
   } catch (err) {
-    // Erro de rede, considera não autenticado
+    // Erro de rede - assume não autenticado por segurança
+    authState.checking = false;
     localStorage.removeItem('sessionId');
     window.location.hash = '#/login';
     return false;
   }
 }
 
+/**
+ * Guard do router - executa ANTES de qualquer renderização
+ */
+async function authGuard(path) {
+  const hasAccess = await verifyAuth(path);
+  
+  if (!hasAccess) {
+    // Atualiza layout para oculto
+    document.body.classList.add('login-only');
+    const sidebar = document.getElementById('sidebar');
+    sidebar?.classList.add('hidden');
+    return false;
+  }
+  
+  // Autenticado - mostra layout completo
+  document.body.classList.remove('login-only');
+  const sidebar = document.getElementById('sidebar');
+  sidebar?.classList.remove('hidden');
+  
+  return true;
+}
+
 // ─── Layout do Sistema ──────────────────────────────────
 
-let isAuthenticated = false;
-
 function updateLayout(authenticated) {
-  isAuthenticated = authenticated;
   const sidebar = document.getElementById('sidebar');
   
   if (authenticated) {
-    // Usuário autenticado - mostrar sidebar e layout normal
     sidebar?.classList.remove('hidden');
     document.body.classList.remove('login-only');
   } else {
-    // Não autenticado - ocultar sidebar
     sidebar?.classList.add('hidden');
     document.body.classList.add('login-only');
   }
 }
 
-// Expor globalmente para uso em outras páginas
 window.updateLayout = updateLayout;
 
-// ─── Inicialização ────────────────────────────────────
+// ─── Inicialização ──────────────────────────────────────
 
 async function initApp() {
-  // Verificar autenticação PRIMEIRO, antes de renderizar qualquer coisa
-  const authenticated = await checkAuth();
-  
-  if (!authenticated) {
-    // Não autenticado - mostrar apenas página de login sem sidebar
-    updateLayout(false);
-    initRouter();
-    return;
-  }
-  
-  // Autenticado - mostrar layout completo
-  updateLayout(true);
-  renderSidebar();
+  // Define o guard de autenticação NO ROUTER
+  setAuthGuard(authGuard);
 
-  // Inicializar roteador
+  // Inicializa o router (o guard vai拦截 todas as rotas)
   initRouter();
 
-  // Carregar configuração e verificar se há dados salvos
-  try {
-    await dataService.loadConfig();
-    
-    const syncStatus = await dataService.getSyncStatus();
-    
-    // Sempre tenta carregar dados se estiver configurado, independente do status da última sincronização
-    if (syncStatus.isConfigured) {
-      try {
-        await dataService.loadJiraData();
-        console.log('Jira Dashboard: Dados carregados com sucesso.');
-      } catch (err) {
-        console.warn('Jira Dashboard: Falha ao carregar dados existentes:', err.message);
-      }
-    } else {
-      console.log('Jira não configurado. Use a página Dados para configurar.');
+  // Verifica autenticação inicial
+  const currentPath = getRoutePath();
+  
+  if (publicRoutes.includes(currentPath)) {
+    // É rota pública - mostra layout normal se for /login
+    if (currentPath === '/login') {
+      updateLayout(false);
     }
-  } catch (error) {
-    console.warn('Erro ao inicializar:', error.message);
+    return;
   }
 
-  // Escutar mudanças no serviço de dados para re-renderizar a sidebar (badge de fonte)
-  dataService.subscribe(() => {
+  // É rota protegida - verifica auth
+  const hasAccess = await verifyAuth(currentPath);
+  
+  if (hasAccess) {
+    updateLayout(true);
     renderSidebar();
-  });
+    
+    // Carrega dados
+    try {
+      await dataService.loadConfig();
+      const syncStatus = await dataService.getSyncStatus();
+      
+      if (syncStatus.isConfigured) {
+        try {
+          await dataService.loadJiraData();
+          console.log('Jira Dashboard: Dados carregados com sucesso.');
+        } catch (err) {
+          console.warn('Jira Dashboard: Falha ao carregar dados:', err.message);
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao inicializar:', error.message);
+    }
 
-  console.log('Jira Dashboard inicializado com sucesso.');
+    dataService.subscribe(() => {
+      renderSidebar();
+    });
+    
+    console.log('Jira Dashboard inicializado com sucesso.');
+  } else {
+    // Não autenticado - layout já atualizado pelo guard
+    console.log('Acesso bloqueado - redirecionando para login');
+  }
 }
 
 // Aguardar DOM
