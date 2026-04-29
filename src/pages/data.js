@@ -264,12 +264,12 @@ function renderDataContent() {
               A sincronização busca todos os tickets do Jira e atualiza a base central no Supabase para toda a equipe.
             </p>
             
-            <button class="btn btn-primary" id="btn-sync-now" style="width: 100%; justify-content: center; padding: 12px;" ${!isConfigured || lastSyncStatus === 'running' ? 'disabled' : ''}>
+            <button class="btn btn-primary" id="btn-sync-now" style="width: 100%; justify-content: center; padding: 12px;" ${lastSyncStatus === 'running' ? 'disabled' : ''}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="${lastSyncStatus === 'running' ? 'spinner' : ''}"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              ${lastSyncStatus === 'running' ? 'Processando...' : 'Sincronizar Global'}
+              ${lastSyncStatus === 'running' ? 'Salvando no Projeto...' : 'Salvar Dados no Projeto'}
             </button>
 
-            <button class="btn btn-secondary" id="btn-clear-cache" style="width: 100%; justify-content: center; margin-top: 12px;" ${!isConfigured ? 'disabled' : ''}>
+            <button class="btn btn-secondary" id="btn-clear-cache" style="width: 100%; justify-content: center; margin-top: 12px;">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
               Limpar Cache API
             </button>
@@ -298,9 +298,12 @@ function renderDataContent() {
   if (testResult) {
     if (testResult.success) {
       const validatedWith = testResult.validatedWith === 'saved' 
-        ? '\n\n(Validadas credenciais salvas no Supabase)' 
-        : '\n\n(Validadas credenciais do formulário)';
-      alert(`Conexão OK!${validatedWith}\nUsuário: ${testResult.user?.displayName}\nTickets encontrados: ${testResult.testResult?.totalTickets}`);
+        ? '\n\n(Usando credenciais salvas)' 
+        : '\n\n(Usando credenciais do formulário)';
+      
+      const metrics = testResult.testResult ? `\n\n📌 MÉTRICAS DO FILTRO:\n- Total de Tickets: ${testResult.testResult.totalTickets}\n- Amostra verificada: OK` : '';
+
+      alert(`Conexão OK!${validatedWith}${metrics}\n\nUsuário Jira: ${testResult.user?.displayName}\n\nAgora você pode clicar em "Salvar Dados no Projeto" para importar.`);
     } else {
       alert(`Erro na Conexão: ${testResult.error}`);
     }
