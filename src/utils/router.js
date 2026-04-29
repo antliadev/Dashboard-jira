@@ -1,30 +1,33 @@
 /**
  * router.js — SPA Router simples baseado em hash
- * Suporta rotas com parâmetros (/project/:id)
+ * Com sistema de Guards para proteção de rotas
  */
 
 const routes = new Map();
 let currentRoute = null;
 let notFoundHandler = null;
+let authGuard = null;
 
-export function registerRoute(path, handler) {
-  routes.set(path, handler);
+// ─── Sistema de Guards ──────────────────────────────────
+
+/**
+ * Define o guard de autenticação
+ * O guard recebe a rota destino e retorna:
+ * - true: permite acesso
+ * - false: bloqueia acesso (redireciona para login)
+ */
+export function setAuthGuard(guardFn) {
+  authGuard = guardFn;
 }
 
-export function setNotFound(handler) {
-  notFoundHandler = handler;
-}
-
-export function navigateTo(path) {
-  window.location.hash = '#' + path;
-}
-
-export function getCurrentRoute() {
-  return currentRoute;
-}
-
-export function getRoutePath() {
-  return window.location.hash.replace(/^#\/?/, '/') || '/';
+/**
+ * Verifica se o acesso à rota é permitido
+ */
+async function checkAccess(path) {
+  // Se não há guard definido, permite tudo
+  if (!authGuard) return true;
+  
+  return await authGuard(path);
 }
 
 function matchRoute(hash) {
@@ -59,21 +62,32 @@ function matchRoute(hash) {
 }
 
 export function initRouter() {
-  const handle = () => {
-    const hash = window.location.hash || '#/';
-    const result = matchRoute(hash);
+  const handle = async () => {
+    const path = window.location.hash.replace(/^#\/?/, '/') || '/';
+    
+    // ─── GUARD: Verifica autenticação ANTES de qualquer coisa ───
+    const hasAccess = await checkAccess(path);
+    
+    if (!hasAccess) {
+      // Guard bloqueou o acesso - não renderiza nada
+      console.log('[Router] Access denied, redirecting to login');
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────
+    
+    const result = matchRoute(window.location.hash || '#/');
     
     if (result) {
-      currentRoute = hash.replace(/^#\/?/, '/');
+      currentRoute = path;
       result.handler(result.params);
     } else if (notFoundHandler) {
       notFoundHandler();
     }
     
-    // Atualizar sidebar ativa
+    // Atualizar sidebar ativa (se estiver visível)
     document.querySelectorAll('.nav-item').forEach(item => {
       const href = item.getAttribute('data-route');
-      item.classList.toggle('active', hash.startsWith('#' + href));
+      item.classList.toggle('active', window.location.hash.startsWith('#' + href));
     });
   };
 

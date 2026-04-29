@@ -1,12 +1,17 @@
 import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
 import { countIssuesInDatabase } from '../../lib/jiraService.js';
 import { configService } from '../../lib/configService.js';
+import { verifyAuth } from '../../auth/verify.js';
 
 export default async function handler(req, res) {
   // Suporte a CORS Preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+
+  // Verificar autenticação
+  const isAuth = await verifyAuth(req, res);
+  if (!isAuth) return;
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
