@@ -161,6 +161,13 @@ class DataService {
    * @param {Object} credentials - As credenciais para sincronização
    */
   async syncFromJira(credentials) {
+    return this.startJiraSync(credentials);
+  }
+
+  /**
+   * Inicia sincronizacao no backend e retorna o jobId.
+   */
+  async startJiraSync(credentials) {
     try {
       // Sanitização básica no frontend
       let { baseUrl } = credentials;
@@ -196,7 +203,7 @@ class DataService {
 
       return result;
     } catch (error) {
-      console.error('[DataService] Erro ao sincronizar:', error.message);
+      console.error('[DataService] Erro ao iniciar sincronizacao:', error.message);
       throw error;
     }
   }
@@ -204,9 +211,13 @@ class DataService {
   /**
    * Verifica status da sincronização
    */
-  async getSyncStatus() {
+  async getSyncStatus(jobId = null) {
     try {
-      const response = await fetch(`${this._apiBase}/sync/status`, {
+      const url = jobId
+        ? `${this._apiBase}/sync/status?jobId=${encodeURIComponent(jobId)}`
+        : `${this._apiBase}/sync/status`;
+
+      const response = await fetch(url, {
         headers: this._getHeaders()
       });
       if (response.ok) {

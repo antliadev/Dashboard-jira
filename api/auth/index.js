@@ -12,10 +12,11 @@
  * - NÃO usa credenciais Jira como bypass
  */
 
-import { isConfigured, supabase } from '../../lib/supabaseServer.js';
+import { isConfigured, supabase, supabaseKeyIsPrivileged } from '../../lib/supabaseServer.js';
+import { createSignedSession, verifySignedSession } from '../../lib/authSession.js';
 
-const VALID_EMAIL = 'admin@jira.com';
-const VALID_PASSWORD = 'admin123';
+const VALID_EMAIL = process.env.AUTH_EMAIL || 'admin@jira.com';
+const VALID_PASSWORD = process.env.AUTH_PASSWORD || 'admin123';
 
 // ─── Sessão no Supabase ─────────────────────────────────
 
@@ -28,6 +29,7 @@ function generateSessionId() {
 
 async function storeSession(sessionId, email) {
   if (!isConfigured || !supabase) return false;
+  if (!supabaseKeyIsPrivileged) return false;
 
   try {
     const { error } = await supabase
@@ -52,6 +54,7 @@ async function storeSession(sessionId, email) {
 
 async function validateSession(sessionId) {
   if (!isConfigured || !supabase || !sessionId) return null;
+  if (!supabaseKeyIsPrivileged) return null;
 
   try {
     const { data, error } = await supabase
@@ -77,6 +80,7 @@ async function validateSession(sessionId) {
 
 async function deleteSession(sessionId) {
   if (!isConfigured || !supabase || !sessionId) return;
+  if (!supabaseKeyIsPrivileged) return;
 
   try {
     await supabase.from('user_sessions').delete().eq('session_id', sessionId);
@@ -105,12 +109,18 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    const sessionId = generateSessionId();
+    let sessionId = generateSessionId();
     const stored = await storeSession(sessionId, email);
 
     if (!stored) {
-      // Fallback: retornar sessão mesmo sem persistir (funciona para dev)
-      console.warn('[Auth] Sessão não persistida no banco (Supabase pode não estar configurado)');
+      try {
+        sessionId = createSignedSession(email);
+      } catch (error) {
+        return res.status(500).json({
+          error: error.message,
+          message: 'Configure AUTH_SESSION_SECRET em producao para permitir login serverless sem service_role.'
+        });
+      }
     }
 
     return res.status(200).json({
@@ -136,7 +146,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ authenticated: false });
     }
 
-    const session = await validateSession(sessionId);
+    const session = (await validateSession(sessionId)) || verifySignedSession(sessionId);
 
     if (!session) {
       return res.status(200).json({ authenticated: false });

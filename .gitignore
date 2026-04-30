@@ -15,6 +15,7 @@ dist-ssr
 # Jira config (contém dados sensíveis)
 jira-config.json
 .env
+.local-data/
 
 # Scripts de diagnóstico temporários (nunca commitar)
 test-*.js
