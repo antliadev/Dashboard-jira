@@ -128,7 +128,17 @@ function renderDataContent() {
           </div>
 
           <div class="form-group">
-            <label for="jira-token">API Token</label>
+            <div class="sync-token-label">
+              <label for="jira-token">API Token</label>
+              <a
+                class="btn btn-secondary sync-token-link"
+                href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Criar API Token
+              </a>
+            </div>
             <input type="password" id="jira-token" placeholder="Cole seu API Token" autocomplete="off" ${isProcessing ? 'disabled' : ''}>
           </div>
         </div>
@@ -252,6 +262,26 @@ function addDataStyles() {
       width: 100%;
       justify-content: center;
       min-height: 44px;
+    }
+
+    .sync-token-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .sync-token-label label {
+      margin: 0;
+    }
+
+    .sync-token-link {
+      width: auto !important;
+      min-height: 32px !important;
+      padding: 6px 10px;
+      font-size: 12px;
+      white-space: nowrap;
     }
 
     .sync-status {
