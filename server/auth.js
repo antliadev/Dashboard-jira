@@ -3,9 +3,9 @@
  * Login único compartilhado para 3 usuários
  */
 
-// Credenciais hardcoded (pode mover para .env se necessário)
-const VALID_EMAIL = 'admin@gmail.com';
-const VALID_PASSWORD = 'admin123';
+// Credenciais do painel. Podem ser sobrescritas no .env local.
+const VALID_EMAIL = process.env.AUTH_EMAIL || 'admin@jira.com';
+const VALID_PASSWORD = process.env.AUTH_PASSWORD || 'admin123';
 
 // Armazenamento de sessões em memória (em produção, usar Redis ou BD)
 const sessions = new Map();

@@ -13,12 +13,11 @@ import express from 'express';
 import { configService } from '../../lib/configService.js';
 import {
   testJiraConnection,
-  fetchAllIssuesFromJira,
-  upsertIssuesToDatabase,
   fetchIssuesFromDatabase,
   countIssuesInDatabase,
   buildDashboardData
 } from '../../lib/jiraService.js';
+import { createSyncJob, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
 
 const router = express.Router();
 
@@ -126,16 +125,23 @@ router.post('/test-connection', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/sync/status', async (req, res) => {
   try {
-    const conn = await configService.getActiveConnection();
-    const total = await countIssuesInDatabase();
+    const job = await getSyncJobStatus(req.query?.jobId || null);
+
+    if (!job) {
+      return res.json({
+        status: 'idle',
+        lastSyncStatus: null,
+        lastSync: null,
+        lastSyncError: null,
+        logs: []
+      });
+    }
 
     return res.json({
-      isConfigured: !!conn,
-      hasToken: !!conn,
-      totalIssuesInDb: total,
-      lastSync: null,
-      lastSyncStatus: null,
-      lastSyncError: null
+      ...job,
+      lastSyncStatus: job.status,
+      lastSync: job.finishedAt || job.startedAt || job.createdAt,
+      lastSyncError: job.error
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -147,65 +153,24 @@ router.get('/sync/status', async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/sync', async (req, res) => {
   try {
-    let { baseUrl, email, token, jql } = req.body || {};
+    const sessionId = req.headers['x-session-id'] || null;
+    const { job, credentials, durable, credentialsPersisted } = await createSyncJob(req.body || {}, sessionId);
 
-    // Buscar credenciais do Supabase se não fornecidas
-    if (!baseUrl || !email || !token) {
-      const conn = await configService.getActiveConnection();
-      if (!conn) {
-        return res.status(400).json({
-          success: false,
-          error: 'Credenciais não configuradas. Acesse a página Dados e configure a conexão com o Jira.'
-        });
-      }
-      baseUrl = baseUrl || conn.baseUrl;
-      email   = email   || conn.email;
-      token   = token   || conn.token;
-      jql     = jql     || conn.jql;
-    }
-
-    // Sanitizar
-    baseUrl = baseUrl.trim().replace(/\/$/, '');
-    email   = email.trim();
-    token   = token.trim();
-    const effectiveJql = jql?.trim() ||
-      'project in (BLCASH, BB, CEP, CTR, CVM175, DTVSLI, ETF, PGINT, SDDS2, SDDSF2, BNPTD, BTA, MAR, P1) AND status is not EMPTY ORDER BY updated DESC';
-
-    console.log('[sync] Iniciando sincronização...');
-
-    // 1) Buscar issues do Jira com paginação
-    const rawIssues = await fetchAllIssuesFromJira(baseUrl, email, token, effectiveJql);
-
-    if (rawIssues.length === 0) {
-      return res.json({
-        success: true,
-        warning: 'Nenhum ticket retornado pelo Jira. Verifique se a JQL está correta.',
-        totalIssues: 0,
-        inserted: 0,
-        updated: 0
+    setImmediate(() => {
+      runSyncJob(job.id, credentials).catch(error => {
+        console.error('[sync] Erro em background:', error.message);
       });
-    }
-
-    // 2) Upsert no Supabase (sem duplicatas)
-    const dbResult = await upsertIssuesToDatabase(rawIssues);
-
-    console.log(`[sync] Concluído. Total: ${dbResult.total} | Novos: ~${dbResult.inserted} | Atualizados: ~${dbResult.updated}`);
-
-    // 3) Retornar resumo
-    return res.json({
-      success: true,
-      lastSyncedAt: new Date().toISOString(),
-      totalIssues: dbResult.total,
-      inserted: dbResult.inserted,
-      updated: dbResult.updated,
-      preview: rawIssues.slice(0, 5).map(i => ({
-        key: i.key,
-        title: i.fields?.summary,
-        project: i.fields?.project?.key,
-        status: i.fields?.status?.name,
-        assignee: i.fields?.assignee?.displayName || 'Não atribuído'
-      }))
     });
+
+    return res.status(202).json({
+      success: true,
+      message: 'Sincronizacao iniciada no backend.',
+      jobId: job.id,
+      job,
+      durable,
+      credentialsPersisted
+    });
+
   } catch (error) {
     console.error('[sync] Erro:', error.message);
     res.status(500).json({ success: false, error: error.message });

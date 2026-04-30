@@ -9,7 +9,8 @@
  * - /api/jira/test-connection (precisa testar antes de logar)
  */
 
-import { isConfigured, supabase } from '../../lib/supabaseServer.js';
+import { isConfigured, supabase, supabaseKeyIsPrivileged } from '../../lib/supabaseServer.js';
+import { verifySignedSession } from '../../lib/authSession.js';
 
 /**
  * Verifica se a requisição tem sessão válida.
@@ -27,6 +28,19 @@ export async function verifyAuth(req, res) {
     res.status(401).json({
       error: 'Acesso não autorizado',
       message: 'Faça login para acessar esta funcionalidade.'
+    });
+    return false;
+  }
+
+  const signedSession = verifySignedSession(sessionId);
+  if (signedSession) {
+    return true;
+  }
+
+  if (!supabaseKeyIsPrivileged) {
+    res.status(401).json({
+      error: 'Sessao invalida',
+      message: 'Faca login novamente para gerar uma sessao valida.'
     });
     return false;
   }
@@ -62,7 +76,10 @@ export async function verifyAuth(req, res) {
     return true;
   } catch (e) {
     console.error('[verifyAuth] Erro ao validar sessão:', e.message);
-    // Em caso de erro interno, permitir acesso (fail-open para não travar o sistema)
-    return true;
+    res.status(401).json({
+      error: 'Sessao invalida',
+      message: 'Nao foi possivel validar sua sessao. Faca login novamente.'
+    });
+    return false;
   }
 }

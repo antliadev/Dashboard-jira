@@ -19,6 +19,10 @@ app.use(cors());
 app.use(express.json());
 
 // ─── Rotas de autenticação (públicas) ───────────────────
+// O frontend e a funcao Vercel usam /api/auth. Mantemos os aliases antigos.
+app.post('/api/auth', auth.handleLogin);
+app.get('/api/auth', auth.handleCheckSession);
+app.delete('/api/auth', auth.handleLogout);
 app.post('/api/auth/login', auth.handleLogin);
 app.post('/api/auth/logout', auth.handleLogout);
 app.get('/api/auth/check', auth.handleCheckSession);

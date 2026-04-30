@@ -1,469 +1,312 @@
 /**
- * data.js — Página de configuração e sincronização do Jira
+ * data.js - Tela simples para iniciar e acompanhar sync Jira no backend.
  */
 import { dataService } from '../data/data-service.js';
-import { formatDateTime, sanitize, sanitizeTitle } from '../utils/helpers.js';
+import { sanitize } from '../utils/helpers.js';
 
 let syncStatus = null;
-let config = null;
-let testResult = null;
-let canEdit = true; // default true
 let pollingInterval = null;
 
 export function renderData() {
   const header = document.getElementById('page-header');
   header.innerHTML = `
     <div>
-      <h2>Configuração Global</h2>
-      <div class="subtitle">Gerencie as credenciais e sincronização para toda a equipe</div>
+      <h2>Importacao de Dados</h2>
+      <div class="subtitle">Sincronizacao Jira executada pelo back-end</div>
     </div>
   `;
 
-  loadInitialData();
-  
-  // Iniciar polling para status de sincronização
-  startStatusPolling();
+  loadInitialStatus();
 }
 
-/**
- * Polling para atualizar o status de sincronização globalmente
- */
-function startStatusPolling() {
-  if (pollingInterval) clearInterval(pollingInterval);
-  
-  pollingInterval = setInterval(async () => {
-    try {
-      const newStatus = await dataService.getSyncStatus();
-      
-      // Se o status mudou de 'running' para algo diferente, ou vice-versa, atualizamos a tela
-      if (newStatus.lastSyncStatus !== syncStatus?.lastSyncStatus || 
-          newStatus.lastSync !== syncStatus?.lastSync) {
-        syncStatus = newStatus;
-        
-        // Atualizar logs no terminal se houver mudança relevante
-        const log = (msg, color = '#888') => {
-          const term = document.getElementById('terminal-log');
-          if (term) {
-            const div = document.createElement('div');
-            div.style.color = color;
-            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            term.appendChild(div);
-            term.scrollTop = term.scrollHeight;
-          }
-        };
-
-        if (newStatus.lastSyncStatus === 'success') {
-          log('EVENTO: Sincronização finalizada com sucesso no servidor.', '#00ff00');
-        } else if (newStatus.lastSyncStatus === 'error') {
-          log(`ERRO: Falha detectada no servidor: ${newStatus.lastSyncError || 'Desconhecido'}`, '#ef4444');
-        }
-
-        // Só atualiza o conteúdo se estivermos na página de dados
-        if (window.location.hash.startsWith('#/data')) {
-           // Se a sincronização acabou de terminar e foi sucesso, recarregamos dados do dashboard em background
-           if (newStatus.lastSyncStatus === 'success') {
-             await dataService.loadJiraData();
-           }
-           renderDataContent();
-        }
-      }
-    } catch (e) {
-      console.warn('[DataPage] Erro no polling de status:', e.message);
-    }
-  }, 15000); // A cada 15 segundos (otimizado para reduzir strain no servidor)
-}
-
-async function loadInitialData() {
+async function loadInitialStatus() {
   const content = document.getElementById('page-content');
   content.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
-  
-  try {
-    // Carregar configuração
-    config = await dataService.loadConfig();
-    
-    // Carregar status de sincronização
-    syncStatus = await dataService.getSyncStatus();
-    
-    renderDataContent();
-  } catch (error) {
-    renderDataContent();
+
+  const savedJobId = sessionStorage.getItem('activeSyncJobId');
+  syncStatus = await dataService.getSyncStatus(savedJobId).catch(() => null);
+
+  if (syncStatus?.id && ['queued', 'running'].includes(syncStatus.status)) {
+    sessionStorage.setItem('activeSyncJobId', syncStatus.id);
+    startPolling(syncStatus.id);
   }
+
+  renderDataContent();
+}
+
+function startPolling(jobId) {
+  if (pollingInterval) clearInterval(pollingInterval);
+
+  pollingInterval = setInterval(async () => {
+    try {
+      syncStatus = await dataService.getSyncStatus(jobId);
+
+      if (!syncStatus || !['queued', 'running'].includes(syncStatus.status)) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+
+        if (syncStatus?.status === 'success') {
+          sessionStorage.removeItem('activeSyncJobId');
+          await dataService.loadJiraData();
+        }
+      }
+
+      if (window.location.hash.startsWith('#/data')) {
+        renderDataContent();
+      }
+    } catch (error) {
+      syncStatus = {
+        status: 'error',
+        error: error.message,
+        logs: []
+      };
+      renderDataContent();
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  }, 3000);
+}
+
+function getStatusMessage() {
+  if (!syncStatus || syncStatus.status === 'idle') {
+    return {
+      className: 'sync-status-idle',
+      title: 'Aguardando sincronizacao.',
+      detail: 'Preencha os dados do Jira e inicie uma nova importacao.'
+    };
+  }
+
+  if (syncStatus.status === 'queued') {
+    return {
+      className: 'sync-status-running',
+      title: 'Sincronizacao aguardando processamento.',
+      detail: 'O job ja foi criado no back-end.'
+    };
+  }
+
+  if (syncStatus.status === 'running') {
+    return {
+      className: 'sync-status-running',
+      title: 'Sincronizando dados no back-end...',
+      detail: 'Voce pode fechar esta aba; o processo continuara no servidor.'
+    };
+  }
+
+  if (syncStatus.status === 'success') {
+    return {
+      className: 'sync-status-success',
+      title: 'Tickets sincronizados com sucesso.',
+      detail: `${syncStatus.totalIssues || 0} tickets processados.`
+    };
+  }
+
+  return {
+    className: 'sync-status-error',
+    title: 'Erro na sincronização.',
+    detail: syncStatus.error || 'Erro desconhecido durante a sincronizacao.'
+  };
 }
 
 function renderDataContent() {
   const content = document.getElementById('page-content');
-  
-  const isConfigured = config?.isConfigured || false;
-  const lastSync = syncStatus?.lastSync || null;
-  const lastSyncStatus = syncStatus?.lastSyncStatus || null;
-  const lastSyncError = syncStatus?.lastSyncError || null;
-  const rawData = dataService.getRawJiraData();
-  
-  // Detectar modo de produção
-  const isProduction = config?.isProduction || false;
-  canEdit = config?.canEdit !== false; // default true
-  const source = config?.source || 'none';
-  
-  // Mensagem de acordo com o source
-  let configMessage = '';
-  if (source === 'env' || isProduction) {
-    configMessage = `
-      <div class="alert-item" style="background: rgba(99,102,241,0.05); border: 1px solid var(--accent-border); border-left: 4px solid var(--accent); margin-bottom: 24px; padding: 16px;">
-        <div style="display: flex; gap: 12px; align-items: center;">
-          <div style="color: var(--accent);">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
-          <div class="alert-text">
-            <strong style="color: var(--text-primary); display: block; margin-bottom: 2px;">Ambiente Compartilhado Ativo</strong>
-            <span style="font-size: 13px; color: var(--text-secondary);">Esta instância utiliza uma "Single Source of Truth". Qualquer alteração nas credenciais ou sincronização reflete imediatamente para todos os usuários da equipe.</span>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-  
+  const status = getStatusMessage();
+  const isProcessing = ['queued', 'running'].includes(syncStatus?.status);
+  const logs = Array.isArray(syncStatus?.logs) ? syncStatus.logs.slice(-6) : [];
+
   content.innerHTML = `
-    <div style="max-width: 1000px; margin: 0 auto;">
-      
-      <!-- Status Cards -->
-      <div class="kpi-grid" style="margin-bottom: 24px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-        <div class="kpi-card" style="border-bottom: 3px solid ${isConfigured ? 'var(--success)' : 'var(--warning)'}">
-          <div class="kpi-label">Conexão Jira</div>
-          <div class="kpi-value" style="font-size: 18px; display: flex; align-items: center; gap: 8px;">
-            ${isConfigured 
-              ? `<span style="color: var(--success);">● Ativa</span>` 
-              : `<span style="color: var(--warning);">● Pendente</span>`}
+    <div class="sync-page">
+      <section class="sync-panel">
+        <div class="sync-form-grid">
+          <div class="form-group">
+            <label for="jira-base-url">Base URL</label>
+            <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" ${isProcessing ? 'disabled' : ''}>
           </div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Modo: ${isProduction ? 'Produção (Global)' : 'Desenvolvimento'}</div>
-        </div>
-        
-        <div class="kpi-card" style="border-bottom: 3px solid ${lastSyncStatus === 'running' ? 'var(--info)' : 'var(--accent)'}">
-          <div class="kpi-label">Última Sincronização</div>
-          <div class="kpi-value" style="font-size: 16px;">
-            ${lastSync ? formatDateTime(lastSync) : 'Nunca'}
-          </div>
-          <div style="margin-top: 4px;">
-            ${lastSyncStatus === 'running' 
-              ? `
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span class="badge badge-progress" style="animation: pulse-badge 1.5s infinite;">Sincronizando agora...</span>
-                  <button id="btn-force-reset" title="Forçar interrupção se estiver travado" style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 2px; display: flex; align-items: center; opacity: 0.7;">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                  </button>
-                </div>
-              `
-              : lastSyncStatus === 'error'
-                ? `<span class="badge badge-blocked" title="${sanitize(lastSyncError || '')}">Erro na última carga</span>`
-                : '<span class="badge badge-done">Dados atualizados</span>'
-            }
-          </div>
-        </div>
-        
-        <div class="kpi-card">
-          <div class="kpi-label">Base de Dados</div>
-          <div class="kpi-value">${rawData?.totalIssues || 0}</div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Tickets armazenados no Supabase</div>
-        </div>
-        
-        <div class="kpi-card">
-          <div class="kpi-label">Ecossistema</div>
-          <div class="kpi-value">${rawData?.totalProjects || 0} <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">projetos</span></div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${rawData?.totalAnalysts || 0} analistas identificados</div>
-        </div>
-      </div>
 
-      ${configMessage}
+          <div class="form-group">
+            <label for="jira-email">E-mail</label>
+            <input type="email" id="jira-email" placeholder="seu-email@empresa.com" autocomplete="email" ${isProcessing ? 'disabled' : ''}>
+          </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start;">
-        
-        <!-- COLUNA ESQUERDA: CONFIG -->
-        <div>
-          <div class="data-section" style="margin-bottom: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-              <h3 style="margin: 0;">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                Parâmetros de Conexão
-              </h3>
-              ${isProduction ? '<span class="badge" style="background: rgba(99,102,241,0.1); color: var(--accent);">READ-ONLY (Vercel)</span>' : ''}
-            </div>
-            
-            <div class="form-group">
-              <label>Jira Base URL *</label>
-              <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" value="${sanitize(config?.baseUrl || '')}" ${!canEdit ? 'disabled' : ''}>
-            </div>
-            
-            <div class="form-group">
-              <label>Jira Email *</label>
-              <input type="email" id="jira-email" placeholder="seu-email@empresa.com" value="" ${!canEdit ? 'disabled' : ''}>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Por segurança, preencha seu e-mail para validar ou sincronizar.</div>
-            </div>
-            
-            <div class="form-group">
-              <label style="display: flex; justify-content: space-between;">
-                API Token *
-                <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" style="font-size: 11px; color: var(--accent); text-decoration: none;">Gerar Token ↗</a>
-              </label>
-              <div style="position: relative;">
-                <input type="text" id="jira-token" placeholder="${canEdit ? 'Cole seu API Token aqui' : 'Token criptografado no banco'}" ${!canEdit ? 'disabled' : ''} style="font-family: monospace; font-size: 11px;">
-                ${config?.tokenMasked ? `<div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-muted); font-family: monospace;">${config.tokenMasked}</div>` : ''}
+          <div class="form-group">
+            <label for="jira-token">API Token</label>
+            <input type="password" id="jira-token" placeholder="Cole seu API Token" autocomplete="off" ${isProcessing ? 'disabled' : ''}>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-start-sync" ${isProcessing ? 'disabled' : ''}>
+          ${isProcessing ? '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Sincronizando...' : 'Iniciar sincronização'}
+        </button>
+      </section>
+
+      <section class="sync-status ${status.className}">
+        <div class="sync-status-header">
+          ${isProcessing ? '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></span>' : ''}
+          <strong>${sanitize(status.title)}</strong>
+        </div>
+        <p>${sanitize(status.detail)}</p>
+        ${syncStatus?.id ? `<div class="sync-job-id">Job: ${sanitize(syncStatus.id)}</div>` : ''}
+        ${logs.length ? `
+          <div class="sync-log-list">
+            ${logs.map(log => `
+              <div>
+                <span>${sanitize(new Date(log.at).toLocaleTimeString())}</span>
+                ${sanitize(log.message)}
               </div>
-            </div>
-            
-            <input type="hidden" id="jira-jql" value="${sanitize(config?.jql || '')}">
-
-            <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
-              <button class="btn btn-secondary" id="btn-test-connection" style="flex: 1;">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Validar Acesso
-              </button>
-            </div>
+            `).join('')}
           </div>
-
-          <!-- Preview dos Dados -->
-          ${rawData && rawData.issues ? `
-            <div class="data-section">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="margin: 0;">Snapshot da Base</h3>
-                <span style="font-size: 11px; color: var(--text-muted);">Amostra de 5 de ${rawData.totalIssues} tickets</span>
-              </div>
-              <div class="table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Chave</th>
-                      <th>Título</th>
-                      <th>Projeto</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${rawData.issues.slice(0, 5).map(issue => `
-                      <tr>
-                        <td style="font-weight: 700; color: var(--accent);">${sanitize(issue.key || '')}</td>
-                        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sanitize(issue.title || '')}</td>
-                        <td><span class="badge badge-type">${sanitize(issue.project.key || '')}</span></td>
-                        <td><span class="badge badge-progress">${sanitize(issue.status.name || '')}</span></td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ` : ''}
-        </div>
-
-        <!-- COLUNA DIREITA: SYNC & LOGS -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-          
-          <div class="data-section" style="background: linear-gradient(to bottom, var(--bg-card), var(--bg-secondary));">
-            <h3>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 8px;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              Sincronização
-            </h3>
-            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5;">
-              A sincronização busca todos os tickets do Jira e atualiza a base central no Supabase para toda a equipe.
-            </p>
-            
-            <button class="btn btn-primary" id="btn-sync-now" style="width: 100%; justify-content: center; padding: 12px;" ${lastSyncStatus === 'running' ? 'disabled' : ''}>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="${lastSyncStatus === 'running' ? 'spinner' : ''}"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              ${lastSyncStatus === 'running' ? 'Salvando no Projeto...' : 'Salvar Dados no Projeto'}
-            </button>
-
-            <button class="btn btn-secondary" id="btn-clear-cache" style="width: 100%; justify-content: center; margin-top: 12px;">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-              Limpar Cache API
-            </button>
-          </div>
-
-          <div class="data-section" style="background: #000; border-color: #333;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="margin: 0; font-family: monospace; color: #00ff00; font-size: 13px;">Terminal.log</h3>
-              <span style="width: 8px; height: 8px; border-radius: 50%; background: #00ff00; box-shadow: 0 0 5px #00ff00;"></span>
-            </div>
-            <div id="terminal-log" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #888; height: 180px; overflow-y: auto; line-height: 1.6;">
-              <div>[${new Date().toLocaleTimeString()}] Sistema de monitoramento ativo.</div>
-              ${lastSync ? `<div>[${new Date(lastSync).toLocaleTimeString()}] Último evento: ${lastSyncStatus === 'success' ? 'SYNC_COMPLETE' : 'SYNC_FAILED'}</div>` : ''}
-              ${lastSyncStatus === 'running' ? '<div style="color: #00ff00;">[SYNC] Sincronização em andamento no servidor...</div>' : ''}
-              <div>[DATABASE] Conectado ao Supabase Cluster.</div>
-              <div style="color: #555;">> Aguardando comando...</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
+        ` : ''}
+      </section>
     </div>
   `;
 
-  // Se houver um resultado de teste, mostrar em um modal ou alerta
-  if (testResult) {
-    if (testResult.success) {
-      const validatedWith = testResult.validatedWith === 'saved' 
-        ? '\n\n(Usando credenciais salvas)' 
-        : '\n\n(Usando credenciais do formulário)';
-      
-      const metrics = testResult.testResult ? `\n\n📌 MÉTRICAS DO FILTRO:\n- Total de Tickets: ${testResult.testResult.totalTickets}\n- Amostra verificada: OK` : '';
-
-      alert(`Conexão OK!${validatedWith}${metrics}\n\nUsuário Jira: ${testResult.user?.displayName}\n\nAgora você pode clicar em "Salvar Dados no Projeto" para importar.`);
-    } else {
-      alert(`Erro na Conexão: ${testResult.error}`);
-    }
-    testResult = null; // Limpar após mostrar
-  }
-
+  addDataStyles();
   setupEventListeners();
 }
 
 function setupEventListeners() {
-  // Testar conexão
-  document.getElementById('btn-test-connection')?.addEventListener('click', async () => {
-    const btn = document.getElementById('btn-test-connection');
-    const originalContent = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Validando...';
-    
-    try {
-      const configData = getFormData();
-      
-      // Validação obrigatória
-      if (!configData.baseUrl || !configData.email || !configData.token) {
-        testResult = { success: false, error: 'Preencha URL, Email e Token para validar a conexão.' };
-        renderDataContent();
-        return;
-      }
-      
-      console.log('[DataPage] Validando credenciais do formulário...');
-      
-      testResult = await dataService.testJiraConnection(configData);
-      
-      // Adicionar informação sobre o que foi validado
-      if (testResult.success) {
-        testResult.validatedWith = 'form';
-      }
-      
+  document.getElementById('btn-start-sync')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-start-sync');
+    const credentials = getFormData();
+
+    if (!credentials.baseUrl || !credentials.email || !credentials.token) {
+      syncStatus = {
+        status: 'error',
+        error: 'Preencha Base URL, E-mail e API Token para iniciar a sincronizacao.',
+        logs: []
+      };
       renderDataContent();
-    } catch (error) {
-      testResult = { success: false, error: error.message };
-      renderDataContent();
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = originalContent;
+      return;
     }
-  });
-
-
-
-  // Sincronizar Global
-  document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
-    if (syncStatus?.lastSyncStatus === 'running') return;
-    
-    const btn = document.getElementById('btn-sync-now');
-    const originalContent = btn.innerHTML;
-    const log = (msg, color = '#888') => {
-      const term = document.getElementById('terminal-log');
-      if (term) {
-        const div = document.createElement('div');
-        div.style.color = color;
-        div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        term.appendChild(div);
-        term.scrollTop = term.scrollHeight;
-      }
-    };
 
     btn.disabled = true;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="spinner"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sincronizando...';
-    
-    log('Iniciando processo de sincronização global...', '#00ff00');
-    
+    btn.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Iniciando...';
+
     try {
-      const configData = getFormData();
-      
-      // Validação obrigatória
-      if (!configData.baseUrl || !configData.email || !configData.token) {
-        alert('Preencha URL, Email e Token para realizar a sincronização!');
-        btn.disabled = false;
-        btn.innerHTML = originalContent;
-        return;
+      const result = await dataService.startJiraSync(credentials);
+      syncStatus = result.job || {
+        id: result.jobId,
+        status: 'queued',
+        logs: []
+      };
+
+      if (result.jobId) {
+        sessionStorage.setItem('activeSyncJobId', result.jobId);
+        startPolling(result.jobId);
       }
 
-      // Iniciar sincronização enviando as credenciais no body
-      log('Solicitando carga de dados ao Jira (isso pode levar até 60s)...', '#00ff00');
-      
-      const syncPromise = dataService.syncFromJira(configData);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Tempo limite excedido. A sincronização continuará rodando no servidor.')), 55000)
-      );
-
-      let result;
-      try {
-        result = await Promise.race([syncPromise, timeoutPromise]);
-        log(`Sincronização concluída: ${result.totalIssues} tickets processados.`, '#00ff00');
-      } catch (error) {
-        if (error.message.includes('Tempo limite')) {
-          log('Sincronização ainda em andamento no servidor...', '#facc15');
-        } else {
-          throw error; // Re-lança erros reais
-        }
-      }
-      
-      // Atualizar status local e UI
-      syncStatus = await dataService.getSyncStatus();
-      alert(`Dados sincronizados para todos!`);
-      
-      // 5. Recarregar dados para o dashboard
-      log('Recarregando cache local...');
-      await dataService.loadJiraData();
       renderDataContent();
     } catch (error) {
-      log(`ERRO: ${error.message}`, '#ef4444');
-      
-      // Forçar reset do status local para desbloquear o botão
-      syncStatus = { lastSyncStatus: 'error', lastSyncError: error.message };
-      
-      alert('Erro na sincronização: ' + error.message);
-      
+      syncStatus = {
+        status: 'error',
+        error: error.message,
+        logs: []
+      };
       renderDataContent();
-    } finally {
-      // Sempre restaurar o botão, independente de sucesso ou erro
-      btn.disabled = false;
-      btn.innerHTML = originalContent;
-    }
-  });
-
-  // Limpar cache
-  document.getElementById('btn-clear-cache')?.addEventListener('click', async () => {
-    if (!confirm('Deseja limpar o cache de API do servidor?')) return;
-    
-    try {
-      await dataService.clearCache();
-      alert('Cache do servidor limpo!');
-      renderDataContent();
-    } catch (error) {
-      alert('Erro ao limpar cache: ' + error.message);
-    }
-  });
-
-  // Forçar reset de sincronização
-  document.getElementById('btn-force-reset')?.addEventListener('click', async () => {
-    if (!confirm('Deseja interromper o status de sincronização? Use apenas se achar que o processo travou.')) return;
-    
-    try {
-      // Chamamos uma API para limpar o cache/status
-      await dataService.clearCache();
-      syncStatus = await dataService.getSyncStatus();
-      alert('Status de sincronização resetado com sucesso.');
-      renderDataContent();
-    } catch (error) {
-      alert('Erro ao resetar: ' + error.message);
     }
   });
 }
 
 function getFormData() {
+  let baseUrl = document.getElementById('jira-base-url')?.value?.trim() || '';
+  if (baseUrl && !baseUrl.startsWith('http')) {
+    baseUrl = `https://${baseUrl}`;
+  }
+  baseUrl = baseUrl.replace(/\/$/, '').toLowerCase();
+
   return {
-    baseUrl: document.getElementById('jira-base-url')?.value?.trim() || '',
+    baseUrl,
     email: document.getElementById('jira-email')?.value?.trim() || '',
-    token: document.getElementById('jira-token')?.value?.trim() || '',
-    jql: document.getElementById('jira-jql')?.value?.trim() || '',
-    cacheTtlMinutes: 10 // Padrão
+    token: document.getElementById('jira-token')?.value?.trim() || ''
   };
+}
+
+function addDataStyles() {
+  if (document.getElementById('data-sync-styles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'data-sync-styles';
+  style.textContent = `
+    .sync-page {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sync-panel,
+    .sync-status {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .sync-form-grid {
+      display: grid;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .sync-panel .btn {
+      width: 100%;
+      justify-content: center;
+      min-height: 44px;
+    }
+
+    .sync-status {
+      border-left-width: 4px;
+    }
+
+    .sync-status-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .sync-status p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .sync-status-idle { border-left-color: var(--border); }
+    .sync-status-running { border-left-color: var(--accent); }
+    .sync-status-success { border-left-color: var(--success); }
+    .sync-status-error { border-left-color: var(--danger); }
+
+    .sync-job-id {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    .sync-log-list {
+      margin-top: 16px;
+      display: grid;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .sync-log-list div {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+
+    .sync-log-list span {
+      color: var(--text-muted);
+      font-family: monospace;
+      white-space: nowrap;
+    }
+  `;
+
+  document.head.appendChild(style);
 }

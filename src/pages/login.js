@@ -27,7 +27,7 @@ export function renderLogin() {
               type="email" 
               id="login-email" 
               name="email" 
-              placeholder="admin@gmail.com"
+              placeholder="admin@jira.com"
               required
               autocomplete="email"
             >
