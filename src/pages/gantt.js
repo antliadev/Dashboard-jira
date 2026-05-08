@@ -285,36 +285,37 @@ function getBarColors(statusClass) {
 // ═══════════════════════════════════════════════════════════════
 
 function getRange(items) {
-  const renderable = items.filter(item => item.canRender && item.start && item.end);
-  const now = new Date();
-  let min = Infinity;
-  let max = -Infinity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  if (!renderable.length) {
-    min = now.getTime();
-    max = now.getTime();
-  } else {
+  // A data inicial da visualização é SEMPRE baseada em hoje + navegação manual (offset)
+  const offsetDays = state.navOffset || 0;
+  const start = addDays(today, offsetDays);
+
+  // Determinar um período de visualização (span) razoável baseado no zoom
+  const viewMode = state.prefs.viewMode;
+  let span = 60; // Padrão 2 meses para ter contexto
+  if (viewMode === 'day') span = 30;
+  if (viewMode === 'week') span = 120;
+  if (viewMode === 'month') span = 365;
+  if (viewMode === 'quarter') span = 730;
+
+  // Calculamos o fim inicial
+  let end = addDays(start, span);
+
+  // Se houver tickets, garantimos que a timeline cubra pelo menos o último ticket visível
+  // para evitar que o gráfico seja cortado se o projeto for muito longo
+  const renderable = items.filter(item => item.canRender && item.start && item.end);
+  if (renderable.length) {
     for (const item of renderable) {
-      if (item.start && item.start.getTime() < min) min = item.start.getTime();
-      if (item.end && item.end.getTime() > max) max = item.end.getTime();
+      if (item.end && item.end > end) {
+        end = new Date(item.end);
+      }
     }
   }
 
-  // Aplicar navegação (navOffset)
-  const offsetDays = state.navOffset || 0;
-  let start = addDays(new Date(min), -5 + offsetDays);
-  let end = addDays(new Date(max), 15 + offsetDays);
-
-  // Garantir um período mínimo visível dependendo do zoom
-  const viewMode = state.prefs.viewMode;
-  let minSpan = 30;
-  if (viewMode === 'week') minSpan = 90;
-  if (viewMode === 'month') minSpan = 365;
-  if (viewMode === 'quarter') minSpan = 730;
-
-  if (daysBetween(start, end) < minSpan) {
-    end = addDays(start, minSpan);
-  }
+  // Margem de segurança no fim
+  end = addDays(end, 15);
 
   return { start, end };
 }
@@ -1606,6 +1607,7 @@ function bindEvents() {
   });
   document.getElementById('gantt-period')?.addEventListener('change', e => {
     state.period = e.target.value;
+    state.navOffset = 0; // Resetar navegação ao filtrar
     renderGantt();
   });
 
@@ -1631,6 +1633,7 @@ function bindEvents() {
     state.priority = '';
     state.period = 'all';
     state.searchQuery = '';
+    state.navOffset = 0; // Resetar para hoje
     renderGantt();
   });
 
@@ -1852,10 +1855,18 @@ export function renderGantt() {
         <div class="subtitle">Timeline corporativa dos tickets Jira · ${cards.length} tickets</div>
       </div>
       <div class="gantt-header-actions">
-        <button class="gantt-action-btn" id="gantt-btn-today-header" title="Rolar para hoje">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Hoje
-        </button>
+        <div class="gantt-nav-controls">
+          <button class="gantt-action-btn" id="gantt-btn-prev" title="Voltar período">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button class="gantt-action-btn" id="gantt-btn-today-header" title="Hoje">
+            Hoje
+          </button>
+          <button class="gantt-action-btn" id="gantt-btn-next" title="Avançar período">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="gantt-header-divider"></div>
         <button class="gantt-action-btn primary" id="gantt-btn-settings-header" title="Personalizar visualização">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Personalizar
@@ -1870,6 +1881,8 @@ export function renderGantt() {
   `;
 
   // Header actions
+  document.getElementById('gantt-btn-prev')?.addEventListener('click', () => navigatePeriod(-1));
+  document.getElementById('gantt-btn-next')?.addEventListener('click', () => navigatePeriod(1));
   document.getElementById('gantt-btn-today-header')?.addEventListener('click', resetToToday);
   document.getElementById('gantt-btn-settings-header')?.addEventListener('click', openSettingsPanel);
 

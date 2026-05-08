@@ -98,6 +98,36 @@
   gap: 12px;
 }
 
+.gantt-nav-controls {
+  display: flex;
+  align-items: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.gantt-nav-controls .gantt-action-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  height: 32px;
+  border-radius: 4px;
+}
+
+.gantt-nav-controls .gantt-action-btn:hover {
+  background: var(--bg-hover);
+}
+
+.gantt-nav-controls .gantt-action-btn#gantt-btn-today-header {
+  font-weight: 600;
+  color: var(--accent);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  margin: 0 2px;
+}
+
 .gantt-header-divider {
   width: 1px;
   height: 24px;
