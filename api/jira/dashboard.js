@@ -1,6 +1,7 @@
 import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
 import { countIssuesInDatabase } from '../../lib/jiraService.js';
 import { configService } from '../../lib/configService.js';
+import { getSyncJobStatus } from '../../lib/syncJobService.js';
 import { verifyAuth } from '../auth/verify.js';
 
 // Lazy import para Supabase - evitar erro se não configurado
@@ -55,6 +56,7 @@ export default async function handler(req, res) {
 
     const total = await countIssuesInDatabase();
     const config = await configService.getActiveConnection();
+    const latestJob = await getSyncJobStatus().catch(() => null);
 
     if (total === 0) {
       return res.status(200).json({
@@ -68,7 +70,8 @@ export default async function handler(req, res) {
         metrics: {},
         board: { columns: [] },
         lastSyncedAt: config?.lastSync || null,
-        lastSyncStatus: config?.lastSyncStatus || null,
+        lastSyncStatus: latestJob?.status || config?.lastSyncStatus || null,
+        syncJob: latestJob,
         info: 'Nenhum dado no banco. Clique em "Sincronizar com Jira" para importar os tickets.'
       });
     }
@@ -79,8 +82,9 @@ export default async function handler(req, res) {
     // Sobrescrever metadados de sync com os do banco para garantir consistência global
     return res.status(200).json({
       ...data,
-      lastSyncedAt: config?.lastSync || data.lastSyncedAt,
-      lastSyncStatus: config?.lastSyncStatus || 'success'
+      lastSyncedAt: latestJob?.finishedAt || config?.lastSync || data.lastSyncedAt,
+      lastSyncStatus: latestJob?.status || config?.lastSyncStatus || 'success',
+      syncJob: latestJob
     });
   } catch (error) {
     console.error('[dashboard] Erro:', error.message);

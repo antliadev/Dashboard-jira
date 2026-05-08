@@ -47,7 +47,7 @@ async function checkAccess(path) {
 }
 
 function matchRoute(hash) {
-  const path = hash.replace(/^#\/?/, '/') || '/';
+  const path = (hash.replace(/^#\/?/, '/') || '/').split('?')[0];
   
   // Busca direta
   if (routes.has(path)) return { handler: routes.get(path), params: {} };
@@ -79,7 +79,7 @@ function matchRoute(hash) {
 
 export function initRouter() {
   const handle = async () => {
-    const path = window.location.hash.replace(/^#\/?/, '/') || '/';
+    const path = (window.location.hash.replace(/^#\/?/, '/') || '/').split('?')[0];
     
     // ─── GUARD: Verifica autenticação ANTES de qualquer coisa ───
     const hasAccess = await checkAccess(path);

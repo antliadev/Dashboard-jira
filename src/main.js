@@ -6,6 +6,7 @@ import './styles/main.css';
 import { initRouter, registerRoute, setNotFound, setAuthGuard } from './utils/router.js';
 import { renderSidebar } from './components/sidebar.js';
 import { dataService } from './data/data-service.js';
+import { sanitize } from './utils/helpers.js';
 
 // Cache de módulos carregados (lazy loading)
 const pageModules = {};
@@ -41,49 +42,96 @@ async function loadPage(path) {
 
 // Rotas públicas (não requerem autenticação)
 const publicRoutes = ['/login'];
+const dataRoutes = new Set(['/', '/projects', '/cards', '/analysts', '/board', '/executive', '/gantt']);
+
+function normalizePath(path) {
+  return (path || '/').split('?')[0] || '/';
+}
+
+function renderDataLoading() {
+  const header = document.getElementById('page-header');
+  const content = document.getElementById('page-content');
+  if (header) {
+    header.innerHTML = `
+      <div>
+        <h2>Carregando dados</h2>
+        <div class="subtitle">Lendo dados persistidos no Supabase</div>
+      </div>
+    `;
+  }
+  if (content) {
+    content.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  }
+}
+
+function renderDataLoadError(error) {
+  const header = document.getElementById('page-header');
+  const content = document.getElementById('page-content');
+  if (header) {
+    header.innerHTML = `
+      <div>
+        <h2>Falha ao carregar dados</h2>
+        <div class="subtitle">Dashboard depende do Supabase como fonte principal</div>
+      </div>
+    `;
+  }
+  if (content) {
+    content.innerHTML = `
+      <div class="empty-state">
+        <h3>Dados persistidos indisponiveis</h3>
+        <p>${sanitize(error?.message || 'Nao foi possivel carregar /api/jira/dashboard.')}</p>
+        <button class="btn btn-primary" id="retry-data-load">Tentar novamente</button>
+        <button class="btn btn-secondary" onclick="location.hash='#/data'">Ir para Dados</button>
+      </div>
+    `;
+    document.getElementById('retry-data-load')?.addEventListener('click', () => {
+      dataService.ensureLoaded({ force: true }).then(() => {
+        renderSidebar();
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }).catch(renderDataLoadError);
+    });
+  }
+}
+
+async function renderRoute(importPage, renderName, params = {}, options = {}) {
+  const path = normalizePath(window.location.hash.replace(/^#\/?/, '/') || '/');
+  if (dataRoutes.has(path) && !options.skipDataLoad) {
+    renderDataLoading();
+    try {
+      await dataService.ensureLoaded();
+      renderSidebar();
+    } catch (error) {
+      renderDataLoadError(error);
+      return;
+    }
+  }
+
+  const module = await importPage();
+  module[renderName](params);
+}
 
 // ─── Configuração de Rotas ──────────────────────────────
 
 // Registrar rotas com lazy loading
-registerRoute('/', async () => {
-  const { renderDashboard } = await import('./pages/dashboard.js');
-  renderDashboard();
-});
-registerRoute('/login', async () => {
-  const { renderLogin } = await import('./pages/login.js');
-  renderLogin();
-});
-registerRoute('/projects', async () => {
-  const { renderProjects } = await import('./pages/projects.js');
-  renderProjects();
-});
-registerRoute('/cards', async () => {
-  const { renderCards } = await import('./pages/cards.js');
-  renderCards();
-});
-registerRoute('/analysts', async () => {
-  const { renderAnalysts } = await import('./pages/analysts.js');
-  renderAnalysts();
-});
-registerRoute('/board', async () => {
-  const { renderBoard } = await import('./pages/board.js');
-  renderBoard();
-});
-registerRoute('/data', async () => {
-  const { renderData } = await import('./pages/data.js');
-  renderData();
-});
-registerRoute('/executive', async () => {
-  const { renderExecutive } = await import('./pages/executive.js');
-  renderExecutive();
-});
-registerRoute('/executive/:projectKey', async (params) => {
-  const { renderExecutive } = await import('./pages/executive.js');
-  renderExecutive(params);
-});
+registerRoute('/', () => renderRoute(() => import('./pages/dashboard.js'), 'renderDashboard'));
+registerRoute('/login', () => renderRoute(() => import('./pages/login.js'), 'renderLogin', {}, { skipDataLoad: true }));
+registerRoute('/projects', () => renderRoute(() => import('./pages/projects.js'), 'renderProjects'));
+registerRoute('/cards', () => renderRoute(() => import('./pages/cards.js'), 'renderCards'));
+registerRoute('/analysts', () => renderRoute(() => import('./pages/analysts.js'), 'renderAnalysts'));
+registerRoute('/board', () => renderRoute(() => import('./pages/board.js'), 'renderBoard'));
+registerRoute('/data', () => renderRoute(() => import('./pages/data.js'), 'renderData', {}, { skipDataLoad: true }));
+registerRoute('/executive', () => renderRoute(() => import('./pages/executive.js'), 'renderExecutive'));
+registerRoute('/executive/:projectKey', (params) => renderRoute(() => import('./pages/executive.js'), 'renderExecutive', params));
+registerRoute('/gantt', () => renderRoute(() => import('./pages/gantt.js'), 'renderGantt'));
 
 // Rotas de detalhe ( redireciona para board com filtro)
-registerRoute('/projects/:id', (params) => {
+registerRoute('/projects/:id', async (params) => {
+  try {
+    await dataService.ensureLoaded();
+  } catch (error) {
+    renderDataLoadError(error);
+    return;
+  }
   const project = dataService.getProjectById(params.id);
   if (project) {
     window.location.hash = `#/board?projectKey=${project.key}`;
@@ -123,6 +171,7 @@ function clearSession() {
 
 // Guard do router — login OBRIGATÓRIO
 async function authGuard(path) {
+  path = normalizePath(path);
   // Se é rota pública, permite
   if (publicRoutes.includes(path)) {
     return true;
@@ -189,7 +238,7 @@ async function initApp() {
   initRouter();
 
   // Verifica autenticação inicial para renderizar sidebar
-  const currentPath = window.location.hash.replace(/^#\/?/, '/') || '/';
+  const currentPath = normalizePath(window.location.hash.replace(/^#\/?/, '/') || '/');
   
   if (!publicRoutes.includes(currentPath)) {
     const sessionId = getSessionId();

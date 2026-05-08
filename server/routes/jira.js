@@ -11,6 +11,7 @@
  */
 import express from 'express';
 import { configService } from '../../lib/configService.js';
+import { checkSupabaseConfig, supabaseKeyIsPrivileged, supabaseKeySource, supabaseKeyType } from '../../lib/supabaseServer.js';
 import {
   testJiraConnection,
   fetchIssuesFromDatabase,
@@ -20,6 +21,29 @@ import {
 import { createSyncJob, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
 
 const router = express.Router();
+
+router.get('/system/status', async (req, res) => {
+  const supabaseConfig = checkSupabaseConfig();
+  const latestJob = await getSyncJobStatus().catch(() => null);
+
+  res.json({
+    supabase: {
+      configured: supabaseConfig.configured,
+      keySource: supabaseKeySource,
+      keyType: supabaseKeyType,
+      privileged: supabaseKeyIsPrivileged,
+      warning: supabaseKeyIsPrivileged
+        ? null
+        : 'Backend nao esta usando service_role/secret. Nao aplicar hardening RLS ainda.'
+    },
+    sync: {
+      latestJobId: latestJob?.id || null,
+      latestStatus: latestJob?.status || null,
+      latestTotalIssues: latestJob?.totalIssues || 0,
+      latestFinishedAt: latestJob?.finishedAt || null
+    }
+  });
+});
 
 // ─────────────────────────────────────────────
 // GET /api/jira/config — Retorna configuração
@@ -84,7 +108,6 @@ router.post('/config', async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/test-connection', async (req, res) => {
   try {
-    console.log('[test-connection] Body recebido:', JSON.stringify(req.body));
     let { baseUrl, email, token, jql } = req.body;
 
     // Se não forneceu no body, buscar do Supabase
@@ -183,6 +206,7 @@ router.post('/sync', async (req, res) => {
 router.get('/dashboard', async (req, res) => {
   try {
     const total = await countIssuesInDatabase();
+    const latestJob = await getSyncJobStatus().catch(() => null);
 
     if (total === 0) {
       return res.json({
@@ -195,13 +219,21 @@ router.get('/dashboard', async (req, res) => {
         statuses: [],
         metrics: {},
         board: { columns: [] },
+        lastSyncedAt: latestJob?.finishedAt || null,
+        lastSyncStatus: latestJob?.status || null,
+        syncJob: latestJob,
         info: 'Nenhum dado no banco. Clique em "Sincronizar com Jira" para importar os tickets.'
       });
     }
 
     const issues = await fetchIssuesFromDatabase();
     const data = buildDashboardData(issues);
-    return res.json(data);
+    return res.json({
+      ...data,
+      lastSyncedAt: latestJob?.finishedAt || data.lastSyncedAt,
+      lastSyncStatus: latestJob?.status || 'success',
+      syncJob: latestJob
+    });
   } catch (error) {
     console.error('[dashboard] Erro:', error.message);
     res.status(500).json({ error: error.message });

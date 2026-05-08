@@ -15,13 +15,16 @@ class DataService {
     this._projects = [];
     this._cards = [];
     this._users = [];
-    this._source = DataSourceType.MOCK;
+    this._source = DataSourceType.EMPTY;
     this._lastSync = null;
     this._listeners = new Set();
     this._rawJiraData = null;
     this._apiStatus = 'disconnected';
     this._config = null;
     this._apiBase = '/api/jira';
+    this._loadPromise = null;
+    this._loadError = null;
+    this._hasLoaded = false;
   }
 
   subscribe(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
@@ -31,6 +34,8 @@ class DataService {
   get lastSync() { return this._lastSync; }
   get apiStatus() { return this._apiStatus; }
   get config() { return this._config; }
+  get isLoaded() { return this._hasLoaded; }
+  get loadError() { return this._loadError; }
 
   /**
    * Carrega dados do mock (fallback)
@@ -255,7 +260,7 @@ class DataService {
       });
       
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Erro ao buscar dados do Jira');
       }
       
@@ -265,23 +270,41 @@ class DataService {
       this._source = DataSourceType.API;
       this._lastSync = data.lastSyncedAt;
       this._apiStatus = 'connected';
+      this._loadError = null;
+      this._hasLoaded = true;
       this._notify();
       
       return data;
     } catch (error) {
       console.error('[DataService] Erro ao carregar dados do Jira:', error.message);
       this._apiStatus = 'error';
+      this._loadError = error;
       
       // NÃO carregar mock automaticamente - deixa vazio se não houver dados
       // O usuário deve sincronizar explicitamente
-      this._projects = [];
-      this._cards = [];
-      this._users = [];
-      this._source = DataSourceType.EMPTY;
+      if (!this._hasLoaded) {
+        this._projects = [];
+        this._cards = [];
+        this._users = [];
+        this._source = DataSourceType.EMPTY;
+      }
       this._notify();
       
       throw error;
+    } finally {
+      this._loadPromise = null;
     }
+  }
+
+  /**
+   * Garante reidratacao unica do estado em memoria a partir do backend.
+   */
+  async ensureLoaded({ force = false } = {}) {
+    if (!force && this._hasLoaded) return this._rawJiraData;
+    if (this._loadPromise) return this._loadPromise;
+
+    this._loadPromise = this.loadJiraData();
+    return this._loadPromise;
   }
 
   /**
@@ -335,6 +358,8 @@ class DataService {
       const updatedAt   = i.jira_updated_at;
       const resolvedAt  = i.jira_resolved_at;
       const dueDate     = i.due_date;
+      const plannedStartDate = i.planned_start_date || i.start_date || i.plannedStartDate || i.startDate || null;
+      const plannedEndDate = i.planned_end_date || i.plannedEndDate || dueDate || null;
       const parentKey   = i.parent_key || null;
       const issueId     = i.issue_id;
       const issueKey    = i.issue_key;
@@ -359,6 +384,12 @@ class DataService {
         updatedAt,
         resolvedAt,
         dueDate,
+        startDate: plannedStartDate,
+        plannedStartDate,
+        plannedEndDate,
+        dateSource: plannedStartDate ? 'jira' : 'created_at_fallback',
+        jiraUrl: i.jira_url || i.jiraUrl || null,
+        rawFields: i.raw_fields || i.rawFields || null,
         sprint: null,
         storyPoints: 0,
         labels: i.labels || [],
@@ -590,9 +621,15 @@ class DataService {
    * Consolida informações de sync de múltiplas fontes.
    */
   getSyncMetadata() {
+    const job = this._rawJiraData?.syncJob || null;
     return {
-      lastSyncedAt: this._lastSync || this._rawJiraData?.lastSyncedAt || null,
-      lastSyncStatus: this._rawJiraData?.lastSyncStatus || null
+      lastSyncedAt: this._lastSync || this._rawJiraData?.lastSyncedAt || job?.finishedAt || null,
+      lastSyncStatus: this._rawJiraData?.lastSyncStatus || job?.status || null,
+      totalIssues: this._rawJiraData?.totalIssues || job?.totalIssues || this._cards.length,
+      inserted: job?.inserted || 0,
+      updated: job?.updated || 0,
+      error: job?.error || this._rawJiraData?.lastSyncError || null,
+      jobId: job?.id || null
     };
   }
 
