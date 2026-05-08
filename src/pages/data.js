@@ -2,6 +2,7 @@
  * data.js - Tela simples para iniciar e acompanhar sync Jira no backend.
  */
 import { dataService } from '../data/data-service.js';
+import { renderSidebar } from '../components/sidebar.js';
 import { sanitize } from '../utils/helpers.js';
 
 let syncStatus = null;
@@ -25,6 +26,7 @@ async function loadInitialStatus() {
 
   const savedJobId = sessionStorage.getItem('activeSyncJobId');
   syncStatus = await dataService.getSyncStatus(savedJobId).catch(() => null);
+  await dataService.ensureLoaded({ force: true }).then(() => renderSidebar()).catch(() => null);
 
   if (syncStatus?.id && ['queued', 'running'].includes(syncStatus.status)) {
     sessionStorage.setItem('activeSyncJobId', syncStatus.id);
@@ -112,6 +114,10 @@ function renderDataContent() {
   const status = getStatusMessage();
   const isProcessing = ['queued', 'running'].includes(syncStatus?.status);
   const logs = Array.isArray(syncStatus?.logs) ? syncStatus.logs.slice(-6) : [];
+  const metadata = dataService.getSyncMetadata();
+  const lastSyncLabel = metadata.lastSyncedAt
+    ? new Date(metadata.lastSyncedAt).toLocaleString('pt-BR')
+    : 'Nunca';
 
   content.innerHTML = `
     <div class="sync-page">
@@ -154,6 +160,12 @@ function renderDataContent() {
           <strong>${sanitize(status.title)}</strong>
         </div>
         <p>${sanitize(status.detail)}</p>
+        <div class="sync-metrics">
+          <div><span>Total no dashboard</span><strong>${sanitize(String(metadata.totalIssues || 0))}</strong></div>
+          <div><span>Ultima sync</span><strong>${sanitize(lastSyncLabel)}</strong></div>
+          <div><span>Status real</span><strong>${sanitize(metadata.lastSyncStatus || syncStatus?.status || 'idle')}</strong></div>
+          <div><span>Inseridos / atualizados</span><strong>${sanitize(String(syncStatus?.inserted ?? metadata.inserted ?? 0))} / ${sanitize(String(syncStatus?.updated ?? metadata.updated ?? 0))}</strong></div>
+        </div>
         ${syncStatus?.id ? `<div class="sync-job-id">Job: ${sanitize(syncStatus.id)}</div>` : ''}
         ${logs.length ? `
           <div class="sync-log-list">
@@ -301,6 +313,33 @@ function addDataStyles() {
       color: var(--text-secondary);
       font-size: 14px;
       line-height: 1.5;
+    }
+
+    .sync-metrics {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sync-metrics div {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: var(--bg-secondary);
+    }
+
+    .sync-metrics span {
+      display: block;
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .sync-metrics strong {
+      color: var(--text-primary);
+      font-size: 14px;
     }
 
     .sync-status-idle { border-left-color: var(--border); }
