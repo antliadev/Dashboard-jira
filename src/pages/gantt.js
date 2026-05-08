@@ -1370,11 +1370,6 @@ function renderLeftPanel(items, grouping, collapsedGroups) {
     </div>
   `;
 }
-        ${bodyHtml || '<div class="gantt-empty-state" style="padding: 40px 20px;"><h3>Nenhum ticket</h3><p>Tente ajustar os filtros ou alterar o período.</p></div>'}
-      </div>
-    </div>
-  `;
-}
 
 // ═══════════════════════════════════════════════════════════════
 // TIMELINE PANEL
