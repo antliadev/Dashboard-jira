@@ -705,7 +705,7 @@ function openModal(cardId) {
           </div>
           <div class="gantt-modal-title">${sanitize(card.title)}</div>
         </div>
-        <button class="gantt-modal-close" aria-label="Fechar">&times;</button>
+        <button class="gantt-modal-close" aria-label="Fechar" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;">&times;</button>
       </div>
       <div class="gantt-modal-body">
         ${fallbackWarning}
@@ -945,7 +945,7 @@ function renderSummary(filtered, allItems) {
     <div class="gantt-summary-bar">
       <div class="gantt-summary-card">
         <div class="gantt-summary-icon filtered">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value">${filtered.length}</span>
@@ -954,7 +954,7 @@ function renderSummary(filtered, allItems) {
       </div>
       <div class="gantt-summary-card">
         <div class="gantt-summary-icon total">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value">${allItems.length}</span>
@@ -963,7 +963,7 @@ function renderSummary(filtered, allItems) {
       </div>
       <div class="gantt-summary-card" title="Tickets atrasados">
         <div class="gantt-summary-icon overdue">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value" style="color:${overdue.length ? '#ef4444' : 'inherit'}">${overdue.length}</span>
@@ -972,7 +972,7 @@ function renderSummary(filtered, allItems) {
       </div>
       <div class="gantt-summary-card">
         <div class="gantt-summary-icon done">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value">${done.length}</span>
@@ -981,7 +981,7 @@ function renderSummary(filtered, allItems) {
       </div>
       <div class="gantt-summary-card">
         <div class="gantt-summary-icon in-progress">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value">${inProgress.length}</span>
@@ -990,7 +990,7 @@ function renderSummary(filtered, allItems) {
       </div>
       <div class="gantt-summary-card" title="Tickets sem data de início ou fim">
         <div class="gantt-summary-icon no-date">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value" style="color:${noDate.length ? '#f59e0b' : 'inherit'}">${noDate.length}</span>
@@ -999,7 +999,7 @@ function renderSummary(filtered, allItems) {
       </div>
       <div class="gantt-summary-card" title="Tickets com fallback de data de criação">
         <div class="gantt-summary-icon fallback">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value" style="color:${fallback.length ? '#a855f7' : 'inherit'}">${fallback.length}</span>
@@ -1065,7 +1065,7 @@ function renderNoDateSection(items, collapsed) {
         <span class="gantt-no-date-title">Tickets com problemas de data</span>
         <span class="gantt-no-date-badge">${noDateItems.length}</span>
         <button class="gantt-no-date-toggle ${collapsed ? 'collapsed' : ''}" aria-label="${collapsed ? 'Expandir' : 'Recolher'}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       </div>
       <div class="gantt-no-date-body ${collapsed ? 'collapsed' : ''}">
@@ -1286,7 +1286,7 @@ function renderGroupHeader(key, groupItems, grouping, isCollapsed) {
   return `
     <div class="gantt-group-header" data-group-key="${sanitize(key)}" data-grouping="${sanitize(grouping)}">
       <button class="gantt-group-toggle ${isCollapsed ? 'collapsed' : ''}" aria-label="${isCollapsed ? 'Expandir' : 'Recolher'} grupo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="gantt-group-badge" style="background:${color}20;color:${color};border:1px solid ${color}40;">
         ${grouping === 'assignee' || grouping === 'project' ? count : ''}
@@ -1295,7 +1295,7 @@ function renderGroupHeader(key, groupItems, grouping, isCollapsed) {
       <div class="gantt-group-meta">
         <span class="gantt-group-count">${count}</span>
         ${overdue ? `<span class="gantt-group-warning">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           ${overdue} atras.
         </span>` : ''}
         ${noDates ? `<span class="gantt-group-warning" style="color:#f59e0b;">
@@ -1560,26 +1560,17 @@ function renderToolbar(projects, users, allItems, filteredCount) {
         <span class="gantt-toolbar-label">Densidade</span>
         <div class="gantt-density-group">
           <button class="gantt-density-btn ${state.prefs.density === 'compact' ? 'active' : ''}" data-density="compact" title="Compacto">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <button class="gantt-density-btn ${state.prefs.density === 'normal' ? 'active' : ''}" data-density="normal" title="Confortável">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <button class="gantt-density-btn ${state.prefs.density === 'expanded' ? 'active' : ''}" data-density="expanded" title="Expandido">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="4" x2="21" y2="4"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="3" y1="4" x2="21" y2="4"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
           </button>
         </div>
       </div>
-      <div class="gantt-toolbar-group">
-        <button class="gantt-action-btn" id="gantt-btn-today" title="Rolar para hoje">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Hoje
-        </button>
-        <button class="gantt-action-btn" id="gantt-btn-settings" title="Personalizar visualização">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          Personalizar
-        </button>
-      </div>
+    </div>
     </div>
     ${activeFilterCount > 0 ? `
       <div class="gantt-active-filters">
@@ -1666,11 +1657,8 @@ function bindEvents() {
     });
   });
 
-  // Today button
-  document.getElementById('gantt-btn-today')?.addEventListener('click', resetToToday);
+  // Today and Settings buttons (moved to header, handled in renderGantt)
 
-  // Settings button
-  document.getElementById('gantt-btn-settings')?.addEventListener('click', openSettingsPanel);
 
   // Card clicks (delegado)
   document.querySelector('.gantt-left-body')?.addEventListener('click', e => {
@@ -1867,13 +1855,14 @@ export function renderGantt() {
       </div>
       <div class="gantt-header-actions">
         <button class="gantt-action-btn" id="gantt-btn-today-header" title="Rolar para hoje">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Hoje
         </button>
         <button class="gantt-action-btn primary" id="gantt-btn-settings-header" title="Personalizar visualização">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Personalizar
         </button>
+        <div class="gantt-header-divider"></div>
         <span class="last-sync">
           <span class="dot"></span>
           ${cards.length} tickets
@@ -1906,7 +1895,7 @@ export function renderGantt() {
         <div class="gantt-main no-data">
           <div class="gantt-empty-state">
             <div class="gantt-empty-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
             <h3>Nenhum ticket encontrado</h3>
             <p>Não há tickets que correspondam aos filtros atuais. Tente ajustar os filtros ou alterar o período de visualização.</p>
@@ -1934,10 +1923,12 @@ ResizeManager.init();
 const initialPrefs = Preferences.load();
 Object.assign(state.prefs, initialPrefs);
 
-// Adicionar CSS
-const cssLink = document.createElement('link');
-cssLink.rel = 'stylesheet';
-cssLink.href = 'src/styles/gantt.css';
-document.head.appendChild(cssLink);
+// Adicionar CSS apenas se não existir
+if (!document.querySelector('link[href*="gantt.css"]')) {
+  const cssLink = document.createElement('link');
+  cssLink.rel = 'stylesheet';
+  cssLink.href = 'src/styles/gantt.css';
+  document.head.appendChild(cssLink);
+}
 
 console.log('[Gantt] Módulo Gantt profissional carregado.');
