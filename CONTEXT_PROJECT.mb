@@ -1,0 +1,305 @@
+{
+  "title": "Jira Dashboard - Contexto Completo do Projeto",
+  "type": "document",
+  "created": "2026-05-08",
+  "version": "1.0.0",
+  "project": "Jira Dashboard Antalia",
+  "description": "Diagnóstico completo e documentação de contexto para continuidade de desenvolvimento"
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+                    JIRA DASHBOARD ANTALIA - DIAGNÓSTICO COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+Data: 08/05/2026 | Versão: 1.0.0 | Status: PRODUÇÃO COM RESSALVAS
+
+═══════════════════════════════════════════════════════════════════════════════
+1. VISÃO GERAL DO PROJETO
+═══════════════════════════════════════════════════════════════════════════════
+
+Objetivo Principal:
+Painel corporativo de alto nível para gestão estratégica de projetos Jira.
+Fornece visão executiva centralizada, auditoria de dados, sincronização global
+e segurança enterprise com credenciais criptografadas.
+
+Stack Tecnológica:
+- Frontend: Vanilla JS ES2023 + Vite 8.0 + Chart.js 4.5 + html2canvas + jsPDF
+- Backend: Node.js 18+ + Express 4.21 + Vercel Functions
+- Database: Supabase (PostgreSQL) com RLS
+- Integração: Jira REST API v3
+
+Contexto Comercial:
+Utilizado pela Antlia Dev para monitoramento de múltiplos projetos Jira,
+consolidando dados em interface unificada com foco em gestão executiva,
+produtividade de times e identificação de problemas.
+
+═══════════════════════════════════════════════════════════════════════════════
+2. ESTRUTURA DE PASTAS
+═══════════════════════════════════════════════════════════════════════════════
+
+dashboard-jira/
+├── api/                         # APIs Serverless Vercel
+│   ├── auth/                   # Autenticação
+│   └── jira/                   # Endpoints Jira
+│
+├── server/                      # Servidor Express (dev)
+│   ├── index.js               # Entrada
+│   ├── routes/jira.js         # Rotas
+│   └── auth.js                # Auth
+│
+├── src/                        # Frontend SPA
+│   ├── main.js                # Entry point
+│   ├── components/sidebar.js  # Navegação
+│   ├── data/
+│   │   ├── data-service.js    # Camada dados
+│   │   ├── models.js          # Modelos domínio
+│   │   └── mock-data.js       # Fallback mock
+│   ├── pages/
+│   │   ├── dashboard.js       # Dashboard KPIs
+│   │   ├── login.js           # Login
+│   │   ├── projects.js        # Grid projetos
+│   │   ├── cards.js           # Tabela tickets
+│   │   ├── board.js          # Kanban
+│   │   ├── analysts.js        # Cards devs
+│   │   ├── data.js           # Config/sync
+│   │   └── executive.js      # Resumo exec
+│   ├── utils/
+│   │   ├── router.js         # SPA Router
+│   │   └── helpers.js        # Utilitários
+│   └── styles/
+│       ├── main.css          # Design system
+│       └── executive.css     # Exec styles
+│
+├── lib/                        # Services compartilhados
+│   ├── supabaseServer.js     # Cliente Supabase
+│   ├── configService.js      # Config Jira
+│   ├── syncJobService.js    # Background jobs
+│   ├── jiraService.js       # Integração Jira
+│   └── encryption.js        # AES-256-GCM
+│
+├── sql/                        # Schema banco
+│   ├── supabase-setup.sql   # Tabelas principais
+│   └── migration-*.sql       # Migrações
+│
+├── package.json               # Dependências
+├── vite.config.js            # Vite config
+├── vercel.json               # Deploy Vercel
+└── .env.example              # Variáveis exemplo
+
+═══════════════════════════════════════════════════════════════════════════════
+3. FUNCIONALIDADES IMPLEMENTADAS
+═══════════════════════════════════════════════════════════════════════════════
+
+PRONTAS ✅:
+- Dashboard executivo com KPIs, gráficos Chart.js, filtros avançados
+- Board Kanban com drag-drop e scroll horizontal/vertical
+- Lista de projetos com grid de cards
+- Lista de tickets com tabela filtrável/ordenável
+- Lista de analistas com produtividade
+- Resumo executivo por projeto com exportação PNG/PDF
+- Configuração Jira e sincronização
+- Autenticação com session-based
+- Sistema de filtros múltiplos
+- Auditoria de dados (tickets sem dados completos)
+
+PARCIAIS ⚠️:
+- Drag & drop no Kanban (UI implementada, não persiste)
+- Cache de sessões (em memória, não durável)
+
+MOCKADAS 🎭:
+- Dados mock (5 projetos, 58 cards, 10 usuários)
+
+API EXTERNA 🔗:
+- Jira REST API v3 (sync e teste conexão)
+- Supabase (dados e credenciais)
+
+═══════════════════════════════════════════════════════════════════════════════
+4. ARQUITETURA
+═══════════════════════════════════════════════════════════════════════════════
+
+Fluxo de Dados:
+1. Frontend SPA → Router (hash-based) → Página Lazy
+2. Página → dataService → Fetch API interna
+3. API → Services → Supabase/Jira API
+4. Resposta → dataService → Página renderiza
+
+Padrões de Código:
+- SPA Router Hash-based (src/utils/router.js)
+- Lazy Loading de páginas (src/main.js)
+- Service Layer (data-service.js, jiraService.js)
+- Data Transfer Objects (buildDashboardData, enrichIssue)
+- Encrypt-then-MAC (AES-256-GCM)
+- Status Category Normalization (models.js)
+
+Pontos Fortes:
+✅ Separação de responsabilidades
+✅ Lazy loading para performance
+✅ Data normalization
+✅ Criptografia de credenciais
+✅ Retry com backoff exponencial
+✅ Paginação otimizada
+
+Problemas:
+⚠️ Duplicação jiraService (server/services/ e lib/)
+⚠️ Sessões em memória (não sobrevivem restart)
+⚠️ Sem testes automatizados
+
+═══════════════════════════════════════════════════════════════════════════════
+5. BANCO DE DADOS (SUPABASE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Tabelas:
+- jira_issues (tickets sincronizados)
+- jira_connections (credenciais criptografadas)
+- jira_sync_jobs (controle de jobs)
+
+Índices:
+- project_key, status_name, assignee_id
+- synced_at, priority_name, type_name
+- jira_updated_at
+
+RLS: Apenas service_role acessa tudo
+
+═══════════════════════════════════════════════════════════════════════════════
+6. AUTENTICAÇÃO
+═══════════════════════════════════════════════════════════════════════════════
+
+Tipo: Session-based (stateless)
+Session ID: Armazenado em localStorage
+Backend: Sessões em memória (Map)
+Credenciais: admin@jira.com / admin123
+Middleware: optionalAuth (não obrigatório para APIs Jira)
+Headers: x-session-id
+
+═══════════════════════════════════════════════════════════════════════════════
+7. SEGURANÇA
+═══════════════════════════════════════════════════════════════════════════════
+
+Implementadas:
+✅ Criptografia AES-256-GCM para tokens
+✅ Sanitization XSS (helpers.js)
+✅ RLS no Supabase
+✅ Session validation
+✅ HTTPS forçado para Jira
+✅ Timeout 30s em chamadas API
+
+Pontos de Atenção:
+⚠️ Sessões em memória (não é ideal para produção)
+⚠️ Sem rate limiting
+⚠️ Credenciais no .env (não commitar)
+
+═══════════════════════════════════════════════════════════════════════════════
+8. PROBLEMAS E RISCOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Problemas Estruturais:
+1. Duplicação jiraService (alta severidade)
+2. Sessões em memória (média severidade)
+3. JWT não implementado (média severidade)
+4. Sem testes (alta severidade)
+
+Bugs:
+1. Drag & drop não persiste (média)
+2. Data page não mostra dados sync (baixa)
+3. Session expira sem notificação (baixa)
+
+Riscos Técnicos:
+- Manutenção bifurcada por duplicação
+- Regressões sem testes
+- Perda de sessões em restart
+- Limitação de 5.000 tickets por sync
+
+═══════════════════════════════════════════════════════════════════════════════
+9. MELHORIAS RECOMENDADAS
+═══════════════════════════════════════════════════════════════════════════════
+
+Alta Prioridade:
+- Adicionar testes unitários e E2E
+- Implementar Redis para sessões
+- Unificar jiraService (remover duplicação)
+- Adicionar rate limiting
+
+Média Prioridade:
+- Persistir drag & drop no Kanban
+- Adicionar WebSocket para updates
+- Histórico de sincronizações
+- Cache Redis para dados Jira
+
+Baixa Prioridade:
+- Temas customizáveis
+- Relatórios agendados
+- Múltiplas conexões Jira
+- SSO (OAuth/Google)
+
+═══════════════════════════════════════════════════════════════════════════════
+10. NÍVEL DE MATURIDADE
+═══════════════════════════════════════════════════════════════════════════════
+
+Classificação: PRODUÇÃO COM RESSALVAS
+
+- Frontend: 85%
+- Backend: 75%
+- Database: 90%
+- Security: 80%
+- DevOps: 70%
+- UX/UI: 80%
+
+Geral: Sistema funciona bem, mas precisa de testes e refinamentos para
+produção robusta.
+
+═══════════════════════════════════════════════════════════════════════════════
+11. PRÓXIMOS PASSOS IDEAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+Fase 1 (Semanas 1-2) - Estabilização:
+1. Unificar jiraService
+2. Adicionar testes básicos
+3. Limpar console.logs
+4. Validar rotas e fluxos
+
+Fase 2 (Semanas 3-4) - Produção:
+1. Implementar Redis para sessões
+2. Adicionar rate limiting
+3. Configurar monitoramento
+4. Setup CI/CD
+
+Fase 3 (Semanas 5-8) - Evolução:
+1. Persistir drag & drop
+2. Adicionar WebSocket
+3. Histórico de sync
+4. Temas dark/light
+
+═══════════════════════════════════════════════════════════════════════════════
+12. CREDENCIAIS E CONFIGURAÇÕES
+═══════════════════════════════════════════════════════════════════════════════
+
+Admin Login: admin@jira.com / admin123
+
+JQL Padrão:
+project in (BLCASH, BB, CEP, CTR, CVM175, DTVSLI, ETF, PGINT, SDDS2,
+SDDSF2, BNPTD, BTA, MAR, P1) AND status is not EMPTY
+ORDER BY project ASC, status ASC, assignee ASC, updated DESC
+
+Variáveis Necessárias:
+- SUPABASE_URL
+- SUPABASE_SERVICE_ROLE_KEY
+- JIRA_ENCRYPTION_KEY (mínimo 32 chars)
+- AUTH_EMAIL
+- AUTH_PASSWORD
+
+═══════════════════════════════════════════════════════════════════════════════
+13. DECISÕES CRÍTICAS PARA PRÓXIMA IA
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Manter arquitetura SPA Vanilla JS - funciona bem, não mudar
+2. Unificar jiraService - priorizar antes de expandir
+3. Adicionar testes - prioritário antes de adicionar features
+4. Sessões Redis - apenas se escalabilidade for necessária
+
+IMPORTANTE: Leia este arquivo primeiro antes de fazer qualquer mudança.
+Depois check package.json e .env.example.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FIM DO DIAGNÓSTICO
+Desenvolvido para continuidade de desenvolvimento por outra IA

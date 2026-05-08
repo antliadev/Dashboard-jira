@@ -56,7 +56,7 @@ export function renderDashboard() {
         <span style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Atualizado em: ${metadata.lastSyncedAt ? formatDateTime(metadata.lastSyncedAt) : 'Nunca'}
-          ${metadata.lastSyncStatus === 'running' && dataService.source !== 'empty' ? '<span style="color: var(--info); animation: pulse 1s infinite;">(Sincronizando...)</span>' : ''}
+          ${metadata.lastSyncStatus === 'running' ? '<span style="color: var(--info); animation: pulse 1s infinite;">(Sincronizando...)</span>' : ''}
         </span>
       </div>
     </div>
