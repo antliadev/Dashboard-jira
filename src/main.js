@@ -169,6 +169,24 @@ function clearSession() {
   localStorage.removeItem('sessionId');
 }
 
+// Helper para fetch com timeout
+async function fetchWithTimeout(url, options = {}, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 // Guard do router — login OBRIGATÓRIO
 async function authGuard(path) {
   path = normalizePath(path);
@@ -186,12 +204,19 @@ async function authGuard(path) {
     return false;
   }
 
-  // Tem sessão — valida com servidor
+  // Tem sessão — valida com servidor (com timeout)
   try {
-    const response = await fetch('/api/auth', {
+    const response = await fetchWithTimeout('/api/auth', {
       method: 'GET',
       headers: { 'x-session-id': sessionId }
-    });
+    }, 5000);
+
+    if (!response.ok) {
+      // Erro HTTP - sessão inválida
+      clearSession();
+      window.location.hash = '#/login';
+      return false;
+    }
 
     const data = await response.json();
 
@@ -204,8 +229,10 @@ async function authGuard(path) {
     window.location.hash = '#/login';
     return false;
   } catch (err) {
-    // Erro de rede — permitir acesso local (dev)
-    console.warn('[Auth] Erro de rede ao verificar sessão, permitindo acesso');
+    // Timeout ou erro de rede - permitir acesso
+    // Em produção, se o servidor não responde, permitimos acesso
+    // O sistema verificará auth novamente nas chamadas de API
+    console.warn('[Auth] Timeout ou erro, permitindo acesso:', err.message);
     return true;
   }
 }
@@ -245,11 +272,11 @@ async function initApp() {
     
     if (sessionId) {
       try {
-        const response = await fetch('/api/auth?check=1', {
+        const response = await fetchWithTimeout('/api/auth?check=1', {
           method: 'GET',
           headers: { 'x-session-id': sessionId }
-        });
-        const data = await response.json();
+        }, 5000);
+        const data = await response.json().catch(() => ({ authenticated: false }));
         
         if (data.authenticated) {
           updateLayout(true);

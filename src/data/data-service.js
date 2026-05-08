@@ -247,6 +247,26 @@ class DataService {
     } catch (error) {
       console.error('[DataService] Erro ao limpar cache:', error.message);
       throw error;
+}
+  }
+
+  /**
+   * Fetch com timeout para evitar travamento eterno
+   */
+  async _fetchWithTimeout(url, options = {}, timeout = 10000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
     }
   }
 
@@ -255,9 +275,9 @@ class DataService {
    */
   async loadJiraData() {
     try {
-      const response = await fetch(`${this._apiBase}/dashboard`, {
+      const response = await this._fetchWithTimeout(`${this._apiBase}/dashboard`, {
         headers: this._getHeaders()
-      });
+      }, 10000);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
