@@ -18,7 +18,7 @@
  *  - summary      : health cards
  *  - render       : orquestração principal
  */
-
+import '../styles/gantt.css';
 import { dataService } from '../data/data-service.js';
 import {
   resolveStatusCategory, StatusCategory, isCardOverdue
@@ -1571,7 +1571,6 @@ function renderToolbar(projects, users, allItems, filteredCount) {
         </div>
       </div>
     </div>
-    </div>
     ${activeFilterCount > 0 ? `
       <div class="gantt-active-filters">
         <span class="gantt-active-filters-text">
@@ -1580,7 +1579,6 @@ function renderToolbar(projects, users, allItems, filteredCount) {
         <button class="gantt-clear-all-btn" id="gantt-clear-filters">Limpar todos</button>
       </div>
     ` : ''}
-    <div id="gantt-summary-container"></div>
   `;
 }
 
@@ -1878,9 +1876,7 @@ export function renderGantt() {
   // Content
   content.innerHTML = `
     <div class="gantt-page">
-      <div class="gantt-header">
-        ${renderToolbar(projects, users, allItems, filtered.length)}
-      </div>
+      ${renderToolbar(projects, users, allItems, filtered.length)}
       ${renderSummary(filtered, allItems)}
       ${filtered.length > 0 ? `
         <div class="gantt-main">
@@ -1923,12 +1919,5 @@ ResizeManager.init();
 const initialPrefs = Preferences.load();
 Object.assign(state.prefs, initialPrefs);
 
-// Adicionar CSS apenas se não existir
-if (!document.querySelector('link[href*="gantt.css"]')) {
-  const cssLink = document.createElement('link');
-  cssLink.rel = 'stylesheet';
-  cssLink.href = 'src/styles/gantt.css';
-  document.head.appendChild(cssLink);
-}
 
 console.log('[Gantt] Módulo Gantt profissional carregado.');
