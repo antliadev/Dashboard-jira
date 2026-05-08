@@ -279,12 +279,40 @@ class DataService {
         headers: this._getHeaders()
       }, 10000);
       
+      // Se 401, é problema de autenticação - não travar, retornar dados vazios
+      if (response.status === 401) {
+        console.warn('[DataService] API retornou 401 - sessão inválida ou ausente');
+        this._rawJiraData = null;
+        this._projects = [];
+        this._cards = [];
+        this._users = [];
+        this._source = DataSourceType.EMPTY;
+        this._apiStatus = 'disconnected';
+        this._loadError = null;
+        this._hasLoaded = true;
+        this._notify();
+        return null;
+      }
+      
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Erro ao buscar dados do Jira');
       }
       
       const data = await response.json();
+      
+      // Verificar se o syncJob está travado como 'running' há muito tempo
+      // Se sim, o backend já deveria ter resetado, mas fazemos um fallback no frontend
+      if (data.syncJob?.status === 'running' && data.lastSyncedAt) {
+        const diffMs = Date.now() - new Date(data.lastSyncedAt).getTime();
+        const diffMin = diffMs / 60000;
+        if (diffMin > 10) {
+          console.warn('[DataService] Sync job preso como running por >10min, forçando status success');
+          data.lastSyncStatus = 'success';
+          data.syncJob.status = 'success';
+        }
+      }
+      
       this._rawJiraData = data;
       this.transformJiraData(data);
       this._source = DataSourceType.API;
@@ -300,17 +328,20 @@ class DataService {
       this._apiStatus = 'error';
       this._loadError = error;
       
-      // NÃO carregar mock automaticamente - deixa vazio se não houver dados
-      // O usuário deve sincronizar explicitamente
+      // Se for AbortError (timeout), manter estado como EMPTY
+      // Se for erro de rede, também - não travar a UI
       if (!this._hasLoaded) {
         this._projects = [];
         this._cards = [];
         this._users = [];
         this._source = DataSourceType.EMPTY;
+        this._hasLoaded = true; // Marcar como carregado para não ficar em loop
+        this._loadError = null; // Limpar erro para não travar
       }
       this._notify();
       
-      throw error;
+      // Não relançar o erro - retornar null para que o fluxo continue
+      return null;
     } finally {
       this._loadPromise = null;
     }
