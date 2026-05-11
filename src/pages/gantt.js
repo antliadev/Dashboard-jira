@@ -31,6 +31,8 @@ import { sanitize, debounce, formatDate, priorityLabel } from '../utils/helpers.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LS_PREFIX = 'gantt.';
+const GANTT_INITIAL_LIMIT = 300;
+const GANTT_INCREMENT = 300;
 const DEFAULT_PREFS = {
   leftColWidth: 400,
   colWidths: {
@@ -99,6 +101,7 @@ const state = {
   filteredItems: [],
   currentRange: null,
   currentTicks: [],
+  visibleLimit: GANTT_INITIAL_LIMIT,
 
   // Preferências (carregadas do localStorage)
   prefs: { ...DEFAULT_PREFS },
@@ -1490,7 +1493,7 @@ function resetToToday() {
 // ═══════════════════════════════════════════════════════════════
 
 function renderToolbar(projects, users, allItems, filteredCount) {
-  const allStatuses = [...new Set(allItems.map(i => i.card.status).filter(Boolean))].sort();
+  const allStatuses = dataService.getStatusOptions();
   const allPriorities = [...new Set(allItems.map(i => i.card.priority).filter(Boolean))].sort();
   const zoomOptions = [
     { value: 'day', label: 'Dia', icon: '' },
@@ -1591,23 +1594,28 @@ function bindEvents() {
   // Filtros
   document.getElementById('gantt-project')?.addEventListener('change', e => {
     state.projectId = e.target.value;
+    state.visibleLimit = GANTT_INITIAL_LIMIT;
     renderGantt();
   });
   document.getElementById('gantt-analyst')?.addEventListener('change', e => {
     state.analystId = e.target.value;
+    state.visibleLimit = GANTT_INITIAL_LIMIT;
     renderGantt();
   });
   document.getElementById('gantt-status')?.addEventListener('change', e => {
     state.status = e.target.value;
+    state.visibleLimit = GANTT_INITIAL_LIMIT;
     renderGantt();
   });
   document.getElementById('gantt-priority')?.addEventListener('change', e => {
     state.priority = e.target.value;
+    state.visibleLimit = GANTT_INITIAL_LIMIT;
     renderGantt();
   });
   document.getElementById('gantt-period')?.addEventListener('change', e => {
     state.period = e.target.value;
     state.navOffset = 0; // Resetar navegação ao filtrar
+    state.visibleLimit = GANTT_INITIAL_LIMIT;
     renderGantt();
   });
 
@@ -1616,11 +1624,13 @@ function bindEvents() {
   if (searchInput) {
     const debouncedSearch = debounce(value => {
       state.searchQuery = value;
+      state.visibleLimit = GANTT_INITIAL_LIMIT;
       renderGantt();
     }, 300);
     searchInput.addEventListener('input', e => debouncedSearch(e.target.value));
     searchInput.addEventListener('search', () => {
       state.searchQuery = '';
+      state.visibleLimit = GANTT_INITIAL_LIMIT;
       renderGantt();
     });
   }
@@ -1634,6 +1644,7 @@ function bindEvents() {
     state.period = 'all';
     state.searchQuery = '';
     state.navOffset = 0; // Resetar para hoje
+    state.visibleLimit = GANTT_INITIAL_LIMIT;
     renderGantt();
   });
 
@@ -1837,7 +1848,8 @@ export function renderGantt() {
   // Processar timeline
   const allItems = cards.map(getCardTimeline);
   const filtered = applyFilters(allItems);
-  const renderable = filtered.filter(item => item.canRender && item.start && item.end);
+  const renderedItems = filtered.slice(0, state.visibleLimit);
+  const renderable = renderedItems.filter(item => item.canRender && item.start && item.end);
   const range = getRange(renderable);
   const ticks = getTicks(range, state.prefs.viewMode);
 
@@ -1894,10 +1906,17 @@ export function renderGantt() {
       ${filtered.length > 0 ? `
         <div class="gantt-main">
           <div class="gantt-grid">
-            ${renderLeftPanel(filtered, state.prefs.grouping, state.prefs.collapsedGroups)}
-            ${renderTimelinePanel(filtered, range, ticks, state.prefs.viewMode, state.prefs.grouping, state.prefs.collapsedGroups)}
+            ${renderLeftPanel(renderedItems, state.prefs.grouping, state.prefs.collapsedGroups)}
+            ${renderTimelinePanel(renderedItems, range, ticks, state.prefs.viewMode, state.prefs.grouping, state.prefs.collapsedGroups)}
           </div>
         </div>
+        ${filtered.length > renderedItems.length ? `
+          <div style="display:flex;justify-content:center;margin:14px 0;">
+            <button class="btn btn-secondary" id="gantt-load-more">
+              Ver mais ${Math.min(GANTT_INCREMENT, filtered.length - renderedItems.length)} de ${filtered.length - renderedItems.length}
+            </button>
+          </div>
+        ` : ''}
         ${renderLegend()}
         ${state.prefs.showNoDateTickets ? renderNoDateSection(allItems, state.prefs.noDateSectionCollapsed) : ''}
       ` : `
@@ -1919,6 +1938,10 @@ export function renderGantt() {
 
   // Bind events
   bindEvents();
+  document.getElementById('gantt-load-more')?.addEventListener('click', () => {
+    state.visibleLimit += GANTT_INCREMENT;
+    renderGantt();
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -1,5 +1,4 @@
-import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
-import { countIssuesInDatabase } from '../../lib/jiraService.js';
+import { fetchDashboardDataFromDatabase } from '../../lib/jiraService.js';
 import { configService } from '../../lib/configService.js';
 import { getSyncJobStatus } from '../../lib/syncJobService.js';
 import { verifyAuth } from '../auth/verify.js';
@@ -28,10 +27,8 @@ export default async function handler(req, res) {
   const isAuthed = await verifyAuth(req, res);
   if (!isAuthed) return;
 
-  // Garantir que não haja cache para refletir mudanças globais imediatamente
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  // Cache HTTP curto; invalidação real fica no cache de agregados do backend.
+  res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
 
   try {
     // Verificar se Supabase está configurado
@@ -54,9 +51,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const total = await countIssuesInDatabase();
     const config = await configService.getActiveConnection();
     const latestJob = await getSyncJobStatus().catch(() => null);
+    const data = await fetchDashboardDataFromDatabase();
+    const total = data.totalIssues || 0;
 
     if (total === 0) {
       return res.status(200).json({
@@ -76,9 +74,6 @@ export default async function handler(req, res) {
       });
     }
 
-    const issues = await fetchIssuesFromDatabase();
-    const data   = buildDashboardData(issues);
-    
     // Sobrescrever metadados de sync com os do banco para garantir consistência global
     return res.status(200).json({
       ...data,

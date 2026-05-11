@@ -13,6 +13,8 @@ let currentFilters = {
   sortBy: 'key',
   sortDir: 'asc'
 };
+const PAGE_SIZE = 100;
+let visibleCount = PAGE_SIZE;
 
 export function renderCards() {
   const header = document.getElementById('page-header');
@@ -30,6 +32,7 @@ function renderCardsContent() {
   const content = document.getElementById('page-content');
   const projects = dataService.getProjects();
   const cards = dataService.getCards(currentFilters);
+  const visibleCards = cards.slice(0, visibleCount);
   
   content.innerHTML = `
     <div class="filter-bar">
@@ -44,7 +47,7 @@ function renderCardsContent() {
         <span class="filter-label">Status</span>
         <select id="filter-status">
           <option value="">Todos os Status</option>
-          ${[...new Set(dataService.getCards().map(c => c.status))].sort().map(s => `<option value="${sanitize(s)}" ${currentFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
+          ${dataService.getStatusOptions().map(s => `<option value="${sanitize(s)}" ${currentFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
         </select>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -85,7 +88,7 @@ function renderCardsContent() {
                 <p>Tente ajustar os filtros ou o termo de busca.</p>
               </td>
             </tr>
-          ` : cards.map(c => {
+          ` : visibleCards.map(c => {
             const project = dataService.getProjectById(c.projectId);
             const user = dataService.getUserById(c.assigneeId);
             const statusCat = resolveStatusCategory(c.status);
@@ -125,27 +128,43 @@ function renderCardsContent() {
         </tbody>
       </table>
     </div>
+    ${cards.length > visibleCards.length ? `
+      <div style="display: flex; justify-content: center; margin-top: 16px;">
+        <button class="btn btn-secondary" id="cards-load-more">
+          Ver mais ${Math.min(PAGE_SIZE, cards.length - visibleCards.length)} de ${cards.length - visibleCards.length}
+        </button>
+      </div>
+    ` : ''}
   `;
 
   // Event Listeners
   document.getElementById('filter-project').addEventListener('change', (e) => {
     currentFilters.projectId = e.target.value;
+    visibleCount = PAGE_SIZE;
     renderCardsContent();
   });
   document.getElementById('filter-status').addEventListener('change', (e) => {
     currentFilters.status = e.target.value;
+    visibleCount = PAGE_SIZE;
     renderCardsContent();
   });
   document.getElementById('filter-priority').addEventListener('change', (e) => {
     currentFilters.priority = e.target.value;
+    visibleCount = PAGE_SIZE;
     renderCardsContent();
   });
   
   const searchInput = document.getElementById('search-cards');
   searchInput.addEventListener('input', debounce((e) => {
     currentFilters.search = e.target.value;
+    visibleCount = PAGE_SIZE;
     renderCardsContent();
   }, 300));
+
+  document.getElementById('cards-load-more')?.addEventListener('click', () => {
+    visibleCount += PAGE_SIZE;
+    renderCardsContent();
+  });
 
   // Função global para sort (chamada no inline onclick)
   window.sortCards = (field) => {
@@ -155,6 +174,7 @@ function renderCardsContent() {
       currentFilters.sortBy = field;
       currentFilters.sortDir = 'asc';
     }
+    visibleCount = PAGE_SIZE;
     renderCardsContent();
   };
 }

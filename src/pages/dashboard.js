@@ -5,11 +5,11 @@
 import { dataService } from '../data/data-service.js';
 import { resolveStatusCategory, StatusCategory, isCardOverdue } from '../data/models.js';
 import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate, priorityLabel } from '../utils/helpers.js';
-import Chart from 'chart.js/auto';
 
 let dashboardChart = null;
-let projectDistributionChart = null;
 let selectedWorkloadProject = '';
+let ChartModule = null;
+let chartRenderToken = 0;
 
 // Estado global de filtros
 let dashboardFilters = {
@@ -90,7 +90,7 @@ export function renderDashboard() {
     // Invalidar cache ao limpar filtros
     statsCache = { key: '', data: null };
     // Recarregar a página para resetar selects
-    location.reload();
+    renderDashboard();
   });
 }
 
@@ -211,7 +211,7 @@ function renderDashboardContent() {
         <span class="filter-label">Status</span>
         <select id="filter-status" class="filter-select">
           <option value="">Todos os Status</option>
-          ${[...new Set(projects.flatMap(p => dataService.getCardsByProject(p.id).map(c => c.status)))].sort().map(s => `<option value="${sanitize(s)}" ${dashboardFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
+          ${dataService.getStatusOptions().map(s => `<option value="${sanitize(s)}" ${dashboardFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
         </select>
       </div>
       
@@ -621,15 +621,21 @@ function getFilteredWorkload() {
   }
   
   // Calcular workload por usuário
-  return users.map(u => {
-    const userCards = cards.filter(c => c.assigneeId === u.id);
-    return { 
-      user: u, 
-      total: userCards.length, 
-      inProgress: userCards.filter(c => resolveStatusCategory(c.status) === StatusCategory.IN_PROGRESS).length,
-      done: userCards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE).length
-    };
-  }).filter(w => w.total > 0);
+  const workloadByUser = new Map();
+  users.forEach(user => {
+    workloadByUser.set(user.id, { user, total: 0, inProgress: 0, done: 0 });
+  });
+
+  cards.forEach(card => {
+    const item = workloadByUser.get(card.assigneeId);
+    if (!item) return;
+    item.total++;
+    const category = resolveStatusCategory(card.status);
+    if (category === StatusCategory.IN_PROGRESS) item.inProgress++;
+    if (category === StatusCategory.DONE) item.done++;
+  });
+
+  return [...workloadByUser.values()].filter(w => w.total > 0);
 }
 
 /**
@@ -745,13 +751,22 @@ function renderInconsistentTableRows() {
   }).join('');
 }
 
-function initCharts(stats, workload) {
+async function loadChart() {
+  if (!ChartModule) {
+    ChartModule = (await import('chart.js/auto')).default;
+  }
+  return ChartModule;
+}
+
+async function initCharts(stats, workload) {
+  const token = ++chartRenderToken;
   // Destruir gráficos anteriores se existirem
   if (dashboardChart) dashboardChart.destroy();
-  if (projectDistributionChart) projectDistributionChart.destroy();
 
   const ctxStatus = document.getElementById('statusChart')?.getContext('2d');
   if (ctxStatus && stats.totalCards > 0) {
+    const Chart = await loadChart();
+    if (token !== chartRenderToken) return;
     dashboardChart = new Chart(ctxStatus, {
       type: 'doughnut',
       data: {

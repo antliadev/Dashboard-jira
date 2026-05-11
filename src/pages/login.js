@@ -93,8 +93,12 @@ export function renderLogin() {
         throw new Error(data.error || 'Erro ao fazer login');
       }
       
-      // Salvar sessionId no localStorage
-      localStorage.setItem('sessionId', data.sessionId);
+      // Salvar sessionId e atualizar cache de auth do app
+      if (window.setSessionId) {
+        window.setSessionId(data.sessionId);
+      } else {
+        localStorage.setItem('sessionId', data.sessionId);
+      }
       
       // Atualizar layout para mostrar sidebar
       if (window.updateLayout) {
