@@ -5,8 +5,19 @@
 import '../styles/executive.css';
 import { dataService } from '../data/data-service.js';
 import { formatDate, sanitize, sanitizeTitle } from '../utils/helpers.js';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+
+let html2canvasModule = null;
+let jsPDFModule = null;
+
+async function loadHtml2Canvas() {
+  if (!html2canvasModule) html2canvasModule = (await import('html2canvas')).default;
+  return html2canvasModule;
+}
+
+async function loadJsPDF() {
+  if (!jsPDFModule) jsPDFModule = (await import('jspdf')).jsPDF;
+  return jsPDFModule;
+}
 
 // Funções de exportação no escopo global
 window.exportExecutivePNG = async function(projectKey) {
@@ -36,6 +47,7 @@ window.exportExecutivePNG = async function(projectKey) {
       throw new Error('Dados do projeto não carregados. Sincronize os dados primeiro.');
     }
 
+    const html2canvas = await loadHtml2Canvas();
     const canvas = await html2canvas(element, {
       backgroundColor: '#0B0F1A',
       scale: 2,
@@ -83,6 +95,8 @@ window.exportExecutivePDF = async function(projectKey) {
       throw new Error('Dados do projeto não carregados. Sincronize os dados primeiro.');
     }
 
+    const html2canvas = await loadHtml2Canvas();
+    const jsPDF = await loadJsPDF();
     const canvas = await html2canvas(element, {
       backgroundColor: '#0B0F1A',
       scale: 2,

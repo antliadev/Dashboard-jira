@@ -6,7 +6,7 @@
  */
 import { dataService } from '../data/data-service.js';
 import { resolveStatusCategory, StatusCategory } from '../data/models.js';
-import { formatDate, priorityLabel, sanitize, sanitizeTitle } from '../utils/helpers.js';
+import { formatDate, priorityLabel, sanitize, sanitizeTitle, debounce } from '../utils/helpers.js';
 
 let currentFilters = {
   projectId: '',
@@ -36,6 +36,8 @@ const COLUMN_LABELS = {
   [StatusCategory.BLOCKED]: 'Bloqueado',
   [StatusCategory.DONE]: 'Concluído'
 };
+const COLUMN_INITIAL_LIMIT = 80;
+const columnVisibleLimits = {};
 
 export function renderBoard() {
   // Ler query params para aplicar filtros automaticamente
@@ -212,7 +214,7 @@ function renderBoardContent() {
         <span class="filter-label">Status</span>
         <select id="filter-board-status">
           <option value="">Todos os Status</option>
-          ${[...new Set(projects.flatMap(p => dataService.getCardsByProject(p.id).map(c => c.status)))].sort().map(s => `<option value="${sanitize(s)}" ${currentFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
+          ${dataService.getStatusOptions().map(s => `<option value="${sanitize(s)}" ${currentFilters.status === s ? 'selected' : ''}>${sanitize(s)}</option>`).join('')}
         </select>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; min-width: 110px;">
@@ -273,7 +275,7 @@ function renderBoardContent() {
             <div class="kanban-column-content" data-status="${sanitize(col.category)}">
               ${col.cards.length === 0 ? `
                 <div class="kanban-empty">Nenhum item</div>
-              ` : col.cards.map(card => {
+              ` : col.cards.slice(0, columnVisibleLimits[col.category] || COLUMN_INITIAL_LIMIT).map(card => {
                 const project = dataService.getProjectById(card.projectId);
                 const user = dataService.getUserById(card.assigneeId);
                 const isOverdue = card.dueDate && resolveStatusCategory(card.status) !== StatusCategory.DONE && new Date(card.dueDate) < new Date();
@@ -310,6 +312,11 @@ function renderBoardContent() {
                   </div>
                 `;
               }).join('')}
+              ${col.cards.length > (columnVisibleLimits[col.category] || COLUMN_INITIAL_LIMIT) ? `
+                <button class="btn btn-secondary btn-sm kanban-load-more" data-category="${sanitize(col.category)}">
+                  Ver mais ${Math.min(COLUMN_INITIAL_LIMIT, col.cards.length - (columnVisibleLimits[col.category] || COLUMN_INITIAL_LIMIT))}
+                </button>
+              ` : ''}
             </div>
           </div>
         `).join('')}
@@ -354,9 +361,18 @@ function renderBoardContent() {
     currentFilters.showNoAnalyst = e.target.checked;
     renderBoardContent();
   });
-  document.getElementById('search-board')?.addEventListener('input', (e) => {
+  document.getElementById('search-board')?.addEventListener('input', debounce((e) => {
     currentFilters.search = e.target.value;
+    Object.keys(columnVisibleLimits).forEach(key => { columnVisibleLimits[key] = COLUMN_INITIAL_LIMIT; });
     renderBoardContent();
+  }, 250));
+
+  document.querySelectorAll('.kanban-load-more').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const category = btn.dataset.category;
+      columnVisibleLimits[category] = (columnVisibleLimits[category] || COLUMN_INITIAL_LIMIT) + COLUMN_INITIAL_LIMIT;
+      renderBoardContent();
+    });
   });
 
   initKanbanNavigation();

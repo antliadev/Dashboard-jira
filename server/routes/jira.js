@@ -11,12 +11,13 @@
  */
 import express from 'express';
 import { configService } from '../../lib/configService.js';
-import { checkSupabaseConfig, supabaseKeyIsPrivileged, supabaseKeySource, supabaseKeyType } from '../../lib/supabaseServer.js';
+import { checkSupabaseConfig, supabase, supabaseKeyIsPrivileged, supabaseKeySource, supabaseKeyType } from '../../lib/supabaseServer.js';
 import {
   testJiraConnection,
   fetchIssuesFromDatabase,
-  countIssuesInDatabase,
-  buildDashboardData
+  fetchIssuesPageFromDatabase,
+  fetchDashboardDataFromDatabase,
+  clearJiraDashboardCache
 } from '../../lib/jiraService.js';
 import { createSyncJob, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
 
@@ -205,8 +206,9 @@ router.post('/sync', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/dashboard', async (req, res) => {
   try {
-    const total = await countIssuesInDatabase();
     const latestJob = await getSyncJobStatus().catch(() => null);
+    const data = await fetchDashboardDataFromDatabase();
+    const total = data.totalIssues || 0;
 
     if (total === 0) {
       return res.json({
@@ -226,8 +228,6 @@ router.get('/dashboard', async (req, res) => {
       });
     }
 
-    const issues = await fetchIssuesFromDatabase();
-    const data = buildDashboardData(issues);
     return res.json({
       ...data,
       lastSyncedAt: latestJob?.finishedAt || data.lastSyncedAt,
@@ -246,17 +246,27 @@ router.get('/dashboard', async (req, res) => {
 router.get('/issues', async (req, res) => {
   try {
     const { project, status, assignee, priority, type } = req.query;
-    const issues = await fetchIssuesFromDatabase({ project, status, assignee, priority, type });
+    const filters = { project, status, assignee, priority, type };
+
+    if (req.query.all === 'true') {
+      const issues = await fetchIssuesFromDatabase(filters);
+      return res.json({
+        total: issues.length,
+        limit: issues.length,
+        offset: 0,
+        issues
+      });
+    }
 
     const limit  = Math.min(parseInt(req.query.limit)  || 100, 500);
     const offset = parseInt(req.query.offset) || 0;
-    const paginated = issues.slice(offset, offset + limit);
+    const page = await fetchIssuesPageFromDatabase(filters, { limit, offset });
 
     return res.json({
-      total: issues.length,
-      limit,
-      offset,
-      issues: paginated
+      total: page.total,
+      limit: page.limit,
+      offset: page.offset,
+      issues: page.issues
     });
   } catch (error) {
     console.error('[issues] Erro:', error.message);
@@ -269,9 +279,7 @@ router.get('/issues', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/projects', async (req, res) => {
   try {
-    const issues = await fetchIssuesFromDatabase();
-    if (issues.length === 0) return res.json([]);
-    const data = buildDashboardData(issues);
+    const data = await fetchDashboardDataFromDatabase();
     return res.json(data.projects);
   } catch (error) {
     console.error('[projects] Erro:', error.message);
@@ -284,9 +292,7 @@ router.get('/projects', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/analysts', async (req, res) => {
   try {
-    const issues = await fetchIssuesFromDatabase();
-    if (issues.length === 0) return res.json([]);
-    const data = buildDashboardData(issues);
+    const data = await fetchDashboardDataFromDatabase();
     return res.json(data.analysts);
   } catch (error) {
     console.error('[analysts] Erro:', error.message);
@@ -299,9 +305,7 @@ router.get('/analysts', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/statuses', async (req, res) => {
   try {
-    const issues = await fetchIssuesFromDatabase();
-    if (issues.length === 0) return res.json([]);
-    const data = buildDashboardData(issues);
+    const data = await fetchDashboardDataFromDatabase();
     return res.json(data.statuses);
   } catch (error) {
     console.error('[statuses] Erro:', error.message);
@@ -314,9 +318,7 @@ router.get('/statuses', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/metrics', async (req, res) => {
   try {
-    const issues = await fetchIssuesFromDatabase();
-    if (issues.length === 0) return res.json({});
-    const data = buildDashboardData(issues);
+    const data = await fetchDashboardDataFromDatabase();
     return res.json(data.metrics);
   } catch (error) {
     console.error('[metrics] Erro:', error.message);
@@ -329,9 +331,7 @@ router.get('/metrics', async (req, res) => {
 // ─────────────────────────────────────────────
 router.get('/board', async (req, res) => {
   try {
-    const issues = await fetchIssuesFromDatabase();
-    if (issues.length === 0) return res.json({ columns: [] });
-    const data = buildDashboardData(issues);
+    const data = await fetchDashboardDataFromDatabase();
     return res.json(data.board);
   } catch (error) {
     console.error('[board] Erro:', error.message);
@@ -344,6 +344,7 @@ router.get('/board', async (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/cache/clear', async (req, res) => {
   try {
+    clearJiraDashboardCache();
     // Resetar status de sincronização no Supabase
     const conn = await configService.getActiveConnection();
     if (conn && conn.id) {

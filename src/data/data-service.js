@@ -25,10 +25,68 @@ class DataService {
     this._loadPromise = null;
     this._loadError = null;
     this._hasLoaded = false;
+    this._version = 0;
+    this._rawIssueById = new Map();
+    this._derived = null;
   }
 
   subscribe(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); }
   _notify() { this._listeners.forEach(fn => fn()); }
+  _invalidateDerived() {
+    this._version++;
+    this._derived = null;
+  }
+
+  _ensureDerived() {
+    if (this._derived?.version === this._version) return this._derived;
+
+    const projectById = new Map();
+    const projectByKey = new Map();
+    const userById = new Map();
+    const cardsByProject = new Map();
+    const cardsByAssignee = new Map();
+    const statusSet = new Set();
+
+    this._projects.forEach(project => {
+      projectById.set(project.id, project);
+      projectByKey.set(project.key, project);
+    });
+
+    this._users.forEach(user => userById.set(user.id, user));
+
+    this._cards.forEach(card => {
+      if (!cardsByProject.has(card.projectId)) cardsByProject.set(card.projectId, []);
+      cardsByProject.get(card.projectId).push(card);
+
+      if (!cardsByAssignee.has(card.assigneeId)) cardsByAssignee.set(card.assigneeId, []);
+      cardsByAssignee.get(card.assigneeId).push(card);
+
+      if (card.status) statusSet.add(card.status);
+    });
+
+    this._derived = {
+      version: this._version,
+      projectById,
+      projectByKey,
+      userById,
+      cardsByProject,
+      cardsByAssignee,
+      statusOptions: [...statusSet].sort(),
+      projectStats: new Map(),
+      userStats: new Map(),
+      projectsRanked: null,
+      usersRanked: null
+    };
+
+    return this._derived;
+  }
+
+  _setCollections({ projects, cards, users }) {
+    this._projects = projects || [];
+    this._cards = cards || [];
+    this._users = users || [];
+    this._invalidateDerived();
+  }
 
   get source() { return this._source; }
   get lastSync() { return this._lastSync; }
@@ -42,9 +100,11 @@ class DataService {
    */
   loadMockData() {
     import('./mock-data.js').then(({ MOCK_PROJECTS, MOCK_CARDS, MOCK_USERS }) => {
-      this._projects = [...MOCK_PROJECTS];
-      this._cards = [...MOCK_CARDS];
-      this._users = [...MOCK_USERS];
+      this._setCollections({
+        projects: [...MOCK_PROJECTS],
+        cards: [...MOCK_CARDS],
+        users: [...MOCK_USERS]
+      });
       this._source = DataSourceType.MOCK;
       this._lastSync = new Date().toISOString();
       this._notify();
@@ -303,9 +363,7 @@ class DataService {
       // NÃO carregar mock automaticamente - deixa vazio se não houver dados
       // O usuário deve sincronizar explicitamente
       if (!this._hasLoaded) {
-        this._projects = [];
-        this._cards = [];
-        this._users = [];
+        this._setCollections({ projects: [], cards: [], users: [] });
         this._source = DataSourceType.EMPTY;
       }
       this._notify();
@@ -332,9 +390,11 @@ class DataService {
    */
   transformJiraData(jiraData) {
     const { issues, projects: jiraProjects, analysts: jiraAnalysts } = jiraData;
+    const projectByKey = new Map();
+    this._rawIssueById = new Map();
     
     // Transformar projetos
-    this._projects = jiraProjects.map(p => ({
+    const projects = jiraProjects.map(p => ({
       id: p.id,
       key: p.key,
       name: p.name,
@@ -344,9 +404,10 @@ class DataService {
       createdAt: new Date().toISOString(),
       avatarUrl: p.avatar
     }));
+    projects.forEach(project => projectByKey.set(project.key, project));
     
     // Transformar usuários/analistas
-    this._users = jiraAnalysts.map(a => ({
+    const users = jiraAnalysts.map(a => ({
       id: a.id,
       displayName: a.name,
       email: a.email || '',
@@ -357,7 +418,7 @@ class DataService {
     // Adicionar "Não atribuído" como usuário
     const unassignedCount = issues.filter(i => !(i.assignee_id || i.assignee?.id)).length;
     if (unassignedCount > 0) {
-      this._users.push({
+      users.push({
         id: 'unassigned',
         displayName: 'Não Atribuído',
         email: '',
@@ -368,7 +429,7 @@ class DataService {
     
     // Transformar cards/issues
     // Formato flat (do banco Supabase): issue.project_key, issue.status_name, etc.
-    this._cards = issues.map(i => {
+    const cards = issues.map(i => {
       const projectKey  = i.project_key || '';
       const assigneeId  = i.assignee_id || null;
       const statusName  = i.status_name || 'Unknown';
@@ -383,6 +444,7 @@ class DataService {
       const parentKey   = i.parent_key || null;
       const issueId     = i.issue_id;
       const issueKey    = i.issue_key;
+      this._rawIssueById.set(issueId, i);
 
       const isInconsistent = !assigneeId || 
                              !priorityName || 
@@ -393,7 +455,7 @@ class DataService {
       return {
         id: issueId,
         key: issueKey,
-        projectId: this.findProjectIdByKey(projectKey),
+        projectId: projectByKey.get(projectKey)?.id || projectKey,
         title: i.title || '',
         description: '',
         assigneeId: assigneeId || 'unassigned',
@@ -419,10 +481,11 @@ class DataService {
         isInconsistent
       };
     });
+    this._setCollections({ projects, cards, users });
   }
 
   findProjectIdByKey(key) {
-    const project = this._projects.find(p => p.key === key);
+    const project = this._ensureDerived().projectByKey.get(key);
     return project ? project.id : key;
   }
 
@@ -452,19 +515,24 @@ class DataService {
     if (invalid.length > 0) {
       throw new Error(`${invalid.length} card(s) sem projeto válido: ${invalid.map(c=>c.key).join(', ')}`);
     }
-    this._projects = [...projects];
-    this._cards = [...cards];
-    this._users = [...users];
+    this._setCollections({
+      projects: [...projects],
+      cards: [...cards],
+      users: [...users]
+    });
     this._source = DataSourceType.IMPORTED;
     this._lastSync = new Date().toISOString();
     this._notify();
   }
 
   getProjects() { return [...this._projects]; }
-  getProjectById(id) { return this._projects.find(p => p.id === id) || null; }
-  getProjectByKey(key) { return this._projects.find(p => p.key === key) || null; }
+  getProjectById(id) { return this._ensureDerived().projectById.get(id) || null; }
+  getProjectByKey(key) { return this._ensureDerived().projectByKey.get(key) || null; }
 
   getProjectStats(projectId) {
+    const derived = this._ensureDerived();
+    if (derived.projectStats.has(projectId)) return derived.projectStats.get(projectId);
+
     const cards = this.getCardsByProject(projectId);
     const total = cards.length;
     const done = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE).length;
@@ -479,13 +547,19 @@ class DataService {
     const storyPointsDone = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE)
       .reduce((sum, c) => sum + (c.storyPoints || 0), 0);
 
-    return { total, done, inProgress, blocked, todo, overdue, progress, health, team, storyPoints, storyPointsDone };
+    const stats = { total, done, inProgress, blocked, todo, overdue, progress, health, team, storyPoints, storyPointsDone };
+    derived.projectStats.set(projectId, stats);
+    return stats;
   }
 
   getProjectsRanked() {
-    return this._projects
+    const derived = this._ensureDerived();
+    if (!derived.projectsRanked) {
+      derived.projectsRanked = this._projects
       .map(p => ({ ...p, stats: this.getProjectStats(p.id) }))
       .sort((a, b) => b.stats.progress - a.stats.progress);
+    }
+    return [...derived.projectsRanked];
   }
 
   getCards(filters = {}) {
@@ -517,14 +591,18 @@ class DataService {
     return result;
   }
 
-  getCardsByProject(projectId) { return this._cards.filter(c => c.projectId === projectId); }
+  getCardsByProject(projectId) { return [...(this._ensureDerived().cardsByProject.get(projectId) || [])]; }
   getCardById(id) { return this._cards.find(c => c.id === id) || null; }
 
   getUsers() { return [...this._users]; }
-  getUserById(id) { return this._users.find(u => u.id === id) || null; }
+  getUserById(id) { return this._ensureDerived().userById.get(id) || null; }
+  getStatusOptions() { return [...this._ensureDerived().statusOptions]; }
 
   getUserStats(userId) {
-    const cards = this._cards.filter(c => c.assigneeId === userId);
+    const derived = this._ensureDerived();
+    if (derived.userStats.has(userId)) return derived.userStats.get(userId);
+
+    const cards = derived.cardsByAssignee.get(userId) || [];
     const total = cards.length;
     const done = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE).length;
     const inProgress = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.IN_PROGRESS).length;
@@ -535,13 +613,19 @@ class DataService {
     const storyPointsDone = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE)
       .reduce((s, c) => s + (c.storyPoints || 0), 0);
     const productivity = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { total, done, inProgress, overdue, blocked, projects, storyPoints, storyPointsDone, productivity };
+    const stats = { total, done, inProgress, overdue, blocked, projects, storyPoints, storyPointsDone, productivity };
+    derived.userStats.set(userId, stats);
+    return stats;
   }
 
   getUsersRanked() {
-    return this._users
+    const derived = this._ensureDerived();
+    if (!derived.usersRanked) {
+      derived.usersRanked = this._users
       .map(u => ({ ...u, stats: this.getUserStats(u.id) }))
       .sort((a, b) => b.stats.productivity - a.stats.productivity);
+    }
+    return [...derived.usersRanked];
   }
 
   getDashboardStats(projectFilter = null) {
@@ -578,7 +662,7 @@ class DataService {
     
     return {
       noAssignee: cards.filter(c => !c.assigneeId || c.assigneeId === 'unassigned'),
-      noPriority: cards.filter(c => !c.priority || c.priority === 'medium' && !this._rawJiraData?.issues?.find(i => i.issue_id === c.id || i.id === c.id)?.priority_name), // Se caiu no default medium sem ter no jira
+      noPriority: cards.filter(c => !c.priority || (c.priority === 'medium' && !this._rawIssueById.get(c.id)?.priority_name)),
       noDueDate: cards.filter(c => !c.dueDate),
       stuckInProgress: cards.filter(c => c.status.toLowerCase().includes('progress') && (!c.assigneeId || c.assigneeId === 'unassigned')),
       unknownStatus: cards.filter(c => c.status === 'Unknown' || resolveStatusCategory(c.status) === StatusCategory.TODO && c.status.toLowerCase().includes('unknown'))

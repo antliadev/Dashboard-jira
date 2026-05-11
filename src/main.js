@@ -43,6 +43,12 @@ async function loadPage(path) {
 // Rotas públicas (não requerem autenticação)
 const publicRoutes = ['/login'];
 const dataRoutes = new Set(['/', '/projects', '/cards', '/analysts', '/board', '/executive', '/gantt']);
+const AUTH_CACHE_TTL_MS = 30000;
+let authCache = {
+  sessionId: null,
+  authenticated: false,
+  checkedAt: 0
+};
 
 function normalizePath(path) {
   return (path || '/').split('?')[0] || '/';
@@ -96,7 +102,7 @@ function renderDataLoadError(error) {
 async function renderRoute(importPage, renderName, params = {}, options = {}) {
   const path = normalizePath(window.location.hash.replace(/^#\/?/, '/') || '/');
   if (dataRoutes.has(path) && !options.skipDataLoad) {
-    renderDataLoading();
+    if (!dataService.isLoaded) renderDataLoading();
     try {
       await dataService.ensureLoaded();
       renderSidebar();
@@ -163,10 +169,20 @@ function getSessionId() {
 
 function setSessionId(sessionId) {
   localStorage.setItem('sessionId', sessionId);
+  authCache = {
+    sessionId,
+    authenticated: true,
+    checkedAt: Date.now()
+  };
 }
 
 function clearSession() {
   localStorage.removeItem('sessionId');
+  authCache = {
+    sessionId: null,
+    authenticated: false,
+    checkedAt: 0
+  };
 }
 
 // Helper para fetch com timeout
@@ -205,6 +221,15 @@ async function authGuard(path) {
   }
 
   // Tem sessão — valida com servidor (com timeout)
+  const now = Date.now();
+  if (
+    authCache.sessionId === sessionId &&
+    authCache.authenticated &&
+    now - authCache.checkedAt < AUTH_CACHE_TTL_MS
+  ) {
+    return true;
+  }
+
   try {
     const response = await fetchWithTimeout('/api/auth', {
       method: 'GET',
@@ -221,6 +246,11 @@ async function authGuard(path) {
     const data = await response.json();
 
     if (data.authenticated) {
+      authCache = {
+        sessionId,
+        authenticated: true,
+        checkedAt: Date.now()
+      };
       return true;
     }
 
@@ -279,17 +309,23 @@ async function initApp() {
         const data = await response.json().catch(() => ({ authenticated: false }));
         
         if (data.authenticated) {
+          authCache = {
+            sessionId,
+            authenticated: true,
+            checkedAt: Date.now()
+          };
           updateLayout(true);
           renderSidebar();
         } else {
           // Sessão inválida - tenta carregar dados
-          updateLayout(true);
-          renderSidebar();
+          clearSession();
+          updateLayout(false);
+          window.location.hash = '#/login';
         }
       } catch (err) {
-        // Erro - mostra layout completo
-        updateLayout(true);
-        renderSidebar();
+        clearSession();
+        updateLayout(false);
+        window.location.hash = '#/login';
       }
     } else {
       // Sem sessão - mostra layout completo (vai verificar credenciais via router)

@@ -1,7 +1,8 @@
 /**
  * analysts.js — Retorna analistas distintos do banco
  */
-import { fetchIssuesFromDatabase, buildDashboardData } from '../../lib/jiraService.js';
+import { fetchDashboardDataFromDatabase } from '../../lib/jiraService.js';
+import { verifyAuth } from '../auth/verify.js';
 
 // Lazy import para Supabase
 async function getSupabaseStatus() {
@@ -18,6 +19,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
+  const isAuthed = await verifyAuth(req, res);
+  if (!isAuthed) return;
+
   // Verificar se Supabase está configurado
   const { isConfigured, supabase } = await getSupabaseStatus();
   
@@ -26,11 +30,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const issues = await fetchIssuesFromDatabase();
-    if (issues.length === 0) {
-      return res.status(200).json([]);
-    }
-    const data = buildDashboardData(issues);
+    const data = await fetchDashboardDataFromDatabase();
     return res.status(200).json(data.analysts);
   } catch (error) {
     console.error('[analysts] Erro:', error.message);
