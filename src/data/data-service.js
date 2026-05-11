@@ -604,15 +604,9 @@ class DataService {
 
     const cards = derived.cardsByAssignee.get(userId) || [];
     const total = cards.length;
-    const done = cards.filter(c => {
-      const s = (c.status || '').toLowerCase();
-      return s.includes('conclui') || s.includes('done') || s.includes('finalizado') || s.includes('resolved') || s.includes('fechado') || s.includes('closed');
-    }).length;
+    const done = cards.filter(c => this.isDoneStatus(c.status)).length;
 
-    const canceled = cards.filter(c => {
-      const s = (c.status || '').toLowerCase();
-      return s.includes('cancel') || s.includes('rejeit') || s.includes('abandon') || s.includes('aborted');
-    }).length;
+    const canceled = cards.filter(c => this.isCanceledStatus(c.status)).length;
     const inProgress = total - (done + canceled);
     const overdue = cards.filter(isCardOverdue).length;
     const blocked = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.BLOCKED).length;
@@ -766,7 +760,7 @@ class DataService {
       name.includes('concluido') ||
       name.includes('finalizado') ||
       name.includes('closed') ||
-      name.includes('resolved')
+      name.includes('resolved') || name.includes('completed') || name.includes('concluida') || name.includes('completo') || name.includes('completed') || name.includes('concluida') || name.includes('sucesso')
     );
   }
 
@@ -1080,6 +1074,20 @@ class DataService {
       predominantPriority,
       farol
     };
+  }
+
+
+  isCanceledStatus(statusName) {
+    if (!statusName) return false;
+    const name = this._stripDiacritics(statusName.toLowerCase());
+    return (
+      name.includes('cancel') ||
+      name.includes('rejeit') ||
+      name.includes('abandon') ||
+      name.includes('abort') ||
+      name.includes('descontinuado') ||
+      name.includes('ignora')
+    );
   }
 
 }
