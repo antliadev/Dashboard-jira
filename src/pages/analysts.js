@@ -45,7 +45,11 @@ export function renderAnalysts() {
                 </div>
                 <div class="metric">
                   <div class="metric-value" style="color: var(--info);">${stats.inProgress}</div>
-                  <div class="metric-label">Ativas</div>
+                  <div class="metric-label">Andamentos</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-value" style="color: var(--success);">${stats.done}</div>
+                  <div class="metric-label">Concluídos</div>
                 </div>
                 <div class="metric">
                   <div class="metric-value" style="color: var(--danger);">${stats.overdue}</div>
