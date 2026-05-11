@@ -205,15 +205,15 @@ input, select, textarea { font-family: inherit; }
 
 /* Analyst card */
 .analyst-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-.analyst-card {
+.analyst-card { overflow: hidden;
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;
   cursor: pointer; transition: all var(--transition); display: flex; gap: 16px; align-items: flex-start;
 }
 .analyst-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.analyst-card .analyst-info { flex: 1; }
-.analyst-card .analyst-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-.analyst-card .analyst-email { font-size: 12px; color: var(--text-muted); }
-.analyst-card .analyst-metrics { display: flex; gap: 16px; margin-top: 12px; }
+.analyst-card .analyst-info { flex: 1; min-width: 0; }
+.analyst-card .analyst-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.analyst-card .analyst-email { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.analyst-card .analyst-metrics { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .analyst-card .metric { text-align: center; }
 .analyst-card .metric-value { font-size: 18px; font-weight: 700; }
 .analyst-card .metric-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
