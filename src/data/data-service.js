@@ -604,8 +604,16 @@ class DataService {
 
     const cards = derived.cardsByAssignee.get(userId) || [];
     const total = cards.length;
-    const done = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.DONE).length;
-    const inProgress = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.IN_PROGRESS).length;
+    const done = cards.filter(c => {
+      const s = (c.status || '').toLowerCase();
+      return s.includes('conclui') || s.includes('done') || s.includes('finalizado') || s.includes('resolved') || s.includes('fechado') || s.includes('closed');
+    }).length;
+
+    const canceled = cards.filter(c => {
+      const s = (c.status || '').toLowerCase();
+      return s.includes('cancel') || s.includes('rejeit') || s.includes('abandon') || s.includes('aborted');
+    }).length;
+    const inProgress = total - (done + canceled);
     const overdue = cards.filter(isCardOverdue).length;
     const blocked = cards.filter(c => resolveStatusCategory(c.status) === StatusCategory.BLOCKED).length;
     const projects = [...new Set(cards.map(c => c.projectId))];
