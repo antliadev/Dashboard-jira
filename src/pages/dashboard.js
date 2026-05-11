@@ -4,7 +4,7 @@
  */
 import { dataService } from '../data/data-service.js';
 import { resolveStatusCategory, StatusCategory, isCardOverdue } from '../data/models.js';
-import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate, priorityLabel } from '../utils/helpers.js';
+import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate, priorityLabel, sanitizeTitle } from '../utils/helpers.js';
 
 let dashboardChart = null;
 let selectedWorkloadProject = '';
