@@ -120,3 +120,28 @@ export function sanitizeUrl(url) {
     return '';
   }
 }
+
+/**
+ * Monta a URL do ticket no Jira de forma segura
+ * @param {Object} card - Objeto do ticket
+ * @param {string} baseUrl - URL base do Jira (ex: https://empresa.atlassian.net)
+ * @returns {string} URL final ou '#'
+ */
+export function getJiraIssueUrl(card, baseUrl) {
+  if (!card || !card.key) return '#';
+  
+  // Prioridade 1: Link real vindo da API do Jira
+  // No transformJiraData, ja tentamos capturar o self ou issue_url
+  if (card.jiraUrl && card.jiraUrl.startsWith('http')) {
+    return card.jiraUrl;
+  }
+  
+  // Prioridade 2: Construir com base no baseUrl e na Key
+  if (baseUrl && baseUrl.startsWith('http')) {
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    return `${cleanBase}/browse/${card.key}`;
+  }
+  
+  console.warn(`[Jira] Não foi possível resolver a URL para o ticket ${card.key}. BaseUrl ausente.`);
+  return '#';
+}

@@ -4,7 +4,7 @@
  */
 import { dataService } from '../data/data-service.js';
 import { resolveStatusCategory, StatusCategory, isCardOverdue } from '../data/models.js';
-import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate, priorityLabel, sanitizeTitle } from '../utils/helpers.js';
+import { PRIORITY_COLORS, STATUS_COLORS, healthLabel, HEALTH_COLORS, sanitize, formatDateTime, formatDate, priorityLabel, sanitizeTitle, getJiraIssueUrl } from '../utils/helpers.js';
 
 let dashboardChart = null;
 let selectedWorkloadProject = '';
@@ -676,6 +676,7 @@ function renderActiveFilters() {
     filters.push(`<span class="badge" style="background: rgba(239,68,68,0.2); color: #ef4444;">⚠️ Vencidos</span>`);
   }
   
+
   if (dashboardFilters.showNoDate) {
     filters.push(`<span class="badge" style="background: rgba(245,158,11,0.2); color: #f59e0b;">📅 Sem Data</span>`);
   }
@@ -731,11 +732,12 @@ function renderInconsistentTableRows() {
     if (c.status === 'Unknown') problems.push('Status desconhecido');
 
     const config = dataService.config;
-    const jiraUrl = config?.baseUrl ? `${config.baseUrl}/browse/${c.key}` : '#';
+    const jiraUrl = getJiraIssueUrl(c, config?.baseUrl);
+    const onclick = jiraUrl === '#' ? "onclick=\"alert('Link indisponível: URL do Jira não configurada. Por favor, ajuste as configurações de conexão.'); return false;\"" : "";
 
     return `
       <tr>
-        <td><a href="${jiraUrl}" target="_blank" class="issue-link">${sanitize(c.key)}</a></td>
+        <td><a href="${jiraUrl}" target="_blank" rel="noopener noreferrer" class="issue-link" ${onclick} style="font-weight: 600; color: var(--accent); text-decoration: none; border-bottom: 1px dashed transparent; transition: all 0.2s;" onmouseover="this.style.borderBottomColor='var(--accent)'" onmouseout="this.style.borderBottomColor='transparent'">${sanitize(c.key)}</a></td>
         <td><div class="text-truncate" style="max-width: 300px;">${sanitize(c.title)}</div></td>
         <td>
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
@@ -744,7 +746,12 @@ function renderInconsistentTableRows() {
         </td>
         <td>${sanitize(dataService.getUserById(c.assigneeId)?.displayName || 'Não atribuído')}</td>
         <td>
-          <a href="${jiraUrl}" target="_blank" class="btn btn-secondary btn-sm">Corrigir no Jira</a>
+          <a href="${jiraUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" ${onclick} style="display: inline-flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
+            </svg>
+            Corrigir no Jira
+          </a>
         </td>
       </tr>
     `;

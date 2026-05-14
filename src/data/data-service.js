@@ -470,7 +470,7 @@ class DataService {
         plannedStartDate,
         plannedEndDate,
         dateSource: plannedStartDate ? 'jira' : 'created_at_fallback',
-        jiraUrl: i.jira_url || i.jiraUrl || null,
+        jiraUrl: i.jira_url || i.jiraUrl || i.issue_url || i.self || null,
         rawFields: i.raw_fields || i.rawFields || null,
         sprint: null,
         storyPoints: 0,
