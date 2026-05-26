@@ -5,6 +5,9 @@
     "api/jira/sync.js": {
       "maxDuration": 300
     },
+    "api/jira/sync/start.js": {
+      "maxDuration": 300
+    },
     "api/jira/sync/worker.js": {
       "maxDuration": 300
     }
