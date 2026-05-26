@@ -24,6 +24,11 @@ import {
   resolveStatusCategory, StatusCategory, isCardOverdue
 } from '../data/models.js';
 import { sanitize, debounce, formatDate, priorityLabel } from '../utils/helpers.js';
+import {
+  buildDeliverables,
+  buildProjectScheduleSummary,
+  toDate as toScheduleDate,
+} from '../data/schedule-service.js';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTES
@@ -51,7 +56,7 @@ const DEFAULT_PREFS = {
   rowHeight: 52,
   density: 'normal',
   viewMode: 'week',
-  grouping: 'none',
+  grouping: 'hierarchy',
   collapsedGroups: {},
   visibleCols: ['key', 'title', 'assignee', 'status', 'priority'],
   showNoDateTickets: true,
@@ -99,9 +104,12 @@ const state = {
   // Dados processados
   allItems: [],
   filteredItems: [],
+  visibleRows: [],
   currentRange: null,
   currentTicks: [],
   visibleLimit: GANTT_INITIAL_LIMIT,
+  hasFocusedToday: false,
+  pendingFocusToday: false,
 
   // Preferências (carregadas do localStorage)
   prefs: { ...DEFAULT_PREFS },
@@ -161,6 +169,12 @@ const Preferences = {
 
 function toDate(value) {
   if (!value) return null;
+  if (typeof value === 'string') {
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) {
+      return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+    }
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
@@ -291,33 +305,18 @@ function getRange(items) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // A data inicial da visualização é SEMPRE baseada em hoje + navegação manual (offset)
-  const offsetDays = state.navOffset || 0;
-  const start = addDays(today, offsetDays);
-
-  // Determinar um período de visualização (span) razoável baseado no zoom
   const viewMode = state.prefs.viewMode;
-  let span = 60; // Padrão 2 meses para ter contexto
-  if (viewMode === 'day') span = 30;
-  if (viewMode === 'week') span = 120;
-  if (viewMode === 'month') span = 365;
-  if (viewMode === 'quarter') span = 730;
+  const before = viewMode === 'day' ? 30 : viewMode === 'week' ? 90 : viewMode === 'month' ? 180 : 365;
+  const after = viewMode === 'day' ? 60 : viewMode === 'week' ? 180 : viewMode === 'month' ? 365 : 730;
+  let start = addDays(today, -before);
+  let end = addDays(today, after);
 
-  // Calculamos o fim inicial
-  let end = addDays(start, span);
-
-  // Se houver tickets, garantimos que a timeline cubra pelo menos o último ticket visível
-  // para evitar que o gráfico seja cortado se o projeto for muito longo
-  const renderable = items.filter(item => item.canRender && item.start && item.end);
-  if (renderable.length) {
-    for (const item of renderable) {
-      if (item.end && item.end > end) {
-        end = new Date(item.end);
-      }
-    }
+  for (const item of items) {
+    if (item.start && item.start < start) start = new Date(item.start);
+    if (item.end && item.end > end) end = new Date(item.end);
   }
 
-  // Margem de segurança no fim
+  start = addDays(start, -15);
   end = addDays(end, 15);
 
   return { start, end };
@@ -372,6 +371,18 @@ function getCellWidth(viewMode) {
   if (viewMode === 'week') return base * 1.8;
   if (viewMode === 'month') return base * 3.5;
   return base * 5; // quarter
+}
+
+function getPxPerDay(viewMode) {
+  const tickWidth = getCellWidth(viewMode);
+  if (viewMode === 'day') return tickWidth;
+  if (viewMode === 'week') return tickWidth / 7;
+  if (viewMode === 'month') return tickWidth / 30.4375;
+  return tickWidth / 91.3125;
+}
+
+function getTotalPixels(range, viewMode) {
+  return Math.max(720, daysBetween(range.start, range.end) * getPxPerDay(viewMode));
 }
 
 function getTicksForMonth(monthStart, viewMode) {
@@ -550,6 +561,29 @@ function getPixelWidth(start, end, range, totalDays, totalPixels) {
   const duration = daysBetween(start, end);
   const width = (duration / totalDays) * totalPixels;
   return Math.max(40, width); // largura mínima 40px
+}
+
+function focusTodayInTimeline({ smooth = false } = {}) {
+  const scroll = document.querySelector('.gantt-timeline-scroll');
+  if (!scroll || !state.currentRange) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const totalDays = daysBetween(state.currentRange.start, state.currentRange.end);
+  const totalPixels = getTotalPixels(state.currentRange, state.prefs.viewMode);
+  const todayPixel = getPixelPosition(today, state.currentRange, totalDays, totalPixels);
+  const target = Math.max(0, todayPixel - (scroll.clientWidth * 0.42));
+  scroll.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'auto' });
+}
+
+function focusTodayAfterRender({ force = false, smooth = false } = {}) {
+  window.requestAnimationFrame(() => {
+    if (force || state.pendingFocusToday || !state.hasFocusedToday) {
+      focusTodayInTimeline({ smooth });
+      state.hasFocusedToday = true;
+      state.pendingFocusToday = false;
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -852,6 +886,7 @@ function openSettingsPanel() {
             <div class="gantt-settings-option-label">Agrupar por</div>
           </div>
           <select class="gantt-settings-select" data-pref="grouping">
+            <option value="hierarchy" ${state.prefs.grouping === 'hierarchy' ? 'selected' : ''}>Projeto > Entregável > Ticket</option>
             <option value="none" ${state.prefs.grouping === 'none' ? 'selected' : ''}>Sem agrupamento</option>
             <option value="project" ${state.prefs.grouping === 'project' ? 'selected' : ''}>Projeto</option>
             <option value="assignee" ${state.prefs.grouping === 'assignee' ? 'selected' : ''}>Responsável</option>
@@ -1188,7 +1223,7 @@ function renderBar(item, range) {
   if (!item.canRender || !item.start || !item.end) return '';
 
   const totalDays = daysBetween(range.start, range.end);
-  const totalPixels = totalDays * getCellWidth(state.prefs.viewMode);
+  const totalPixels = getTotalPixels(range, state.prefs.viewMode);
 
   const left = getPixelPosition(item.start, range, totalDays, totalPixels);
   const width = getPixelWidth(item.start, item.end, range, totalDays, totalPixels);
@@ -1270,6 +1305,150 @@ function renderLeftRow(item) {
   return `
     <div class="gantt-row" data-card-id="${sanitize(card.id)}">
       ${cellsHtml}
+    </div>
+  `;
+}
+
+function getRowStartEndFromItems(items) {
+  const renderable = items.filter(item => item.start && item.end);
+  if (!renderable.length) return { start: null, end: null };
+  return {
+    start: new Date(Math.min(...renderable.map(item => item.start.getTime()))),
+    end: new Date(Math.max(...renderable.map(item => item.end.getTime()))),
+  };
+}
+
+function buildHierarchyRows(items) {
+  const projects = dataService.getProjects();
+  const byProject = new Map();
+
+  for (const item of items) {
+    const projectId = item.card.projectId || 'unknown';
+    if (!byProject.has(projectId)) byProject.set(projectId, []);
+    byProject.get(projectId).push(item);
+  }
+
+  const rows = [];
+  const sortedProjects = [...byProject.entries()].sort(([a], [b]) => {
+    const pa = projects.find(project => project.id === a);
+    const pb = projects.find(project => project.id === b);
+    return (pa?.key || a).localeCompare(pb?.key || b);
+  });
+
+  for (const [projectId, projectItems] of sortedProjects) {
+    const project = projects.find(item => item.id === projectId) || { id: projectId, key: projectId, name: 'Sem projeto' };
+    const projectCards = projectItems.map(item => item.card);
+    const schedule = buildProjectScheduleSummary(project, projectCards);
+    const rollup = getRowStartEndFromItems(projectItems);
+    const projectStart = toScheduleDate(schedule.plannedStartDate) || toScheduleDate(schedule.effectiveStartDate) || rollup.start;
+    const projectEnd = toScheduleDate(schedule.plannedEndDate) || toScheduleDate(schedule.effectiveEndDate) || rollup.end;
+    const deliverables = buildDeliverables(projectCards);
+    const projectRow = {
+      id: `project:${projectId}`,
+      type: 'project',
+      level: 0,
+      title: `${project.key || projectId} — ${project.name || ''}`,
+      subtitle: `${projectItems.length} tickets · ${deliverables.length} entregáveis`,
+      start: projectStart,
+      end: projectEnd,
+      progress: schedule.completionPercentage || 0,
+      risk: schedule.healthStatus || 'ok',
+      bufferDays: schedule.bufferDays,
+      childCount: deliverables.length,
+    };
+    rows.push(projectRow);
+
+    for (const deliverable of deliverables) {
+      const deliverableItems = deliverable.tickets
+        .map(card => projectItems.find(item => item.card.id === card.id))
+        .filter(Boolean);
+      const dRollup = getRowStartEndFromItems(deliverableItems);
+      const deliverableRow = {
+        id: `deliverable:${projectId}:${deliverable.id}`,
+        parentId: projectRow.id,
+        type: 'deliverable',
+        level: 1,
+        title: deliverable.name,
+        subtitle: `${deliverableItems.length} tickets · risco ${deliverable.riskStatus}`,
+        start: toScheduleDate(deliverable.plannedStartDate) || dRollup.start,
+        end: toScheduleDate(deliverable.plannedEndDate) || dRollup.end,
+        progress: deliverable.completionPercentage || 0,
+        risk: deliverable.riskStatus,
+        childCount: deliverableItems.length,
+      };
+      rows.push(deliverableRow);
+      for (const item of deliverableItems) {
+        rows.push({
+          ...item,
+          id: `ticket:${item.card.id}`,
+          parentId: deliverableRow.id,
+          type: 'ticket',
+          level: 2,
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+function flattenHierarchyRows(rows, collapsedGroups) {
+  const hiddenParents = new Set();
+  return rows.filter(row => {
+    if (row.parentId && hiddenParents.has(row.parentId)) {
+      hiddenParents.add(row.id);
+      return false;
+    }
+    if (collapsedGroups[row.id]) hiddenParents.add(row.id);
+    return true;
+  });
+}
+
+function renderHierarchyLeftRow(row) {
+  if (row.type === 'ticket') return renderLeftRow(row);
+  const isCollapsed = state.prefs.collapsedGroups?.[row.id] === true;
+  const riskClass = row.risk === 'risk' || row.risk === 'high' ? 'red' : row.risk === 'attention' || row.risk === 'medium' ? 'yellow' : 'green';
+  return `
+    <div class="gantt-row gantt-hierarchy-row ${row.type}" data-hierarchy-id="${sanitize(row.id)}">
+      <button class="gantt-group-toggle ${isCollapsed ? 'collapsed' : ''}" aria-label="${isCollapsed ? 'Expandir' : 'Recolher'} ${sanitize(row.title)}" data-hierarchy-toggle="${sanitize(row.id)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="gantt-hierarchy-main" style="padding-left:${row.level * 18}px">
+        <strong>${sanitize(row.title)}</strong>
+        <span>${sanitize(row.subtitle || '')}</span>
+      </div>
+      <span class="gantt-hierarchy-pill ${riskClass}">${Math.round(row.progress || 0)}%</span>
+    </div>
+  `;
+}
+
+function renderHierarchyLeftPanel(rows) {
+  return `
+    <div class="gantt-left-panel">
+      <div class="gantt-left-header-grid gantt-hierarchy-header">
+        <div class="gantt-col-header" style="width:${state.prefs.leftColWidth}px"><span>Projeto / Entregável / Ticket</span></div>
+      </div>
+      <div class="gantt-left-body">
+        ${rows.map(row => renderHierarchyLeftRow(row)).join('') || '<div class="gantt-empty-state" style="padding: 40px 20px;"><h3>Nenhum ticket</h3><p>Tente ajustar os filtros.</p></div>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderAggregateBar(row, range) {
+  if (!row.start || !row.end) return '';
+  const totalDays = daysBetween(range.start, range.end);
+  const totalPixels = getTotalPixels(range, state.prefs.viewMode);
+  const left = getPixelPosition(row.start, range, totalDays, totalPixels);
+  const width = getPixelWidth(row.start, row.end, range, totalDays, totalPixels);
+  const riskClass = row.risk === 'risk' || row.risk === 'high' ? 'danger' : row.risk === 'attention' || row.risk === 'medium' ? 'warning' : 'success';
+  const bufferLabel = row.type === 'project' && row.bufferDays !== null && row.bufferDays !== undefined
+    ? ` · gordura ${row.bufferDays > 0 ? '+' : ''}${row.bufferDays}d`
+    : '';
+  return `
+    <div class="gantt-aggregate-bar ${row.type} ${riskClass}" style="left:${left}px;width:${Math.max(48, width)}px;" title="${sanitize(row.title)}${sanitize(bufferLabel)}">
+      <span class="gantt-aggregate-progress" style="width:${Math.max(0, Math.min(100, row.progress || 0))}%"></span>
+      <span class="gantt-aggregate-text">${sanitize(row.type === 'project' ? 'Projeto' : 'Entregável')} · ${Math.round(row.progress || 0)}%</span>
     </div>
   `;
 }
@@ -1381,7 +1560,7 @@ function renderLeftPanel(items, grouping, collapsedGroups) {
 
 function renderTimelinePanel(items, range, ticks, viewMode, grouping, collapsedGroups) {
   const totalDays = daysBetween(range.start, range.end);
-  const totalPixels = totalDays * getCellWidth(viewMode);
+  const totalPixels = getTotalPixels(range, viewMode);
   const today = new Date();
 
   // Cabeçalho da timeline
@@ -1466,26 +1645,69 @@ function renderTimelinePanel(items, range, ticks, viewMode, grouping, collapsedG
   `;
 }
 
+function renderHierarchyTimelinePanel(rows, range, ticks, viewMode) {
+  const totalDays = daysBetween(range.start, range.end);
+  const totalPixels = getTotalPixels(range, viewMode);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { monthHtml, tickHtml } = renderTimelineHeader(ticks, range, viewMode);
+  const tickWidth = getCellWidth(viewMode);
+  const gridLinesHtml = ticks.map(tick => {
+    const classes = ['gantt-grid-line'];
+    if (viewMode === 'day' && isWeekend(tick)) classes.push('weekend');
+    if (isSameDay(tick, today)) classes.push('today');
+    return `<div class="${classes.join(' ')}" style="min-width:${tickWidth}px;width:${tickWidth}px;"></div>`;
+  }).join('');
+  const todayPixelPos = getPixelPosition(today, range, totalDays, totalPixels);
+  const bodyHtml = rows.map(row => `
+    <div class="gantt-timeline-row ${row.type === 'project' || row.type === 'deliverable' ? `hierarchy-${row.type}` : ''}">
+      ${row.type === 'ticket' ? renderBar(row, range) : renderAggregateBar(row, range)}
+    </div>
+  `).join('');
+
+  return `
+    <div class="gantt-timeline-panel">
+      <div class="gantt-timeline-scroll">
+        <div class="gantt-timeline-content" style="width:${totalPixels}px;">
+          <div class="gantt-timeline-header" style="width:${totalPixels}px;">
+            <div class="gantt-timeline-months" style="width:${totalPixels}px;">
+              ${monthHtml}
+            </div>
+            <div class="gantt-timeline-ticks" style="width:${totalPixels}px;">
+              ${tickHtml}
+            </div>
+          </div>
+          <div class="gantt-timeline-body" style="position:relative;width:${totalPixels}px;">
+            <div class="gantt-grid-lines" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;">
+              ${gridLinesHtml}
+            </div>
+            ${today >= range.start && today <= range.end ? `<div class="gantt-today-line" style="left:${todayPixelPos}px;"></div>` : ''}
+            <div class="gantt-bars-container">
+              ${bodyHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // NAVIGATION — Navegação de período
 // ═══════════════════════════════════════════════════════════════
 
 function navigatePeriod(direction) {
-  const range = state.currentRange;
-  if (!range) return;
-
-  const viewMode = state.prefs.viewMode;
-  const span = daysBetween(range.start, range.end);
-  const halfSpan = Math.max(Math.round(span * 0.5), 14);
-
-  const shift = direction > 0 ? halfSpan : -halfSpan;
-  state.navOffset = (state.navOffset || 0) + shift;
-  renderGantt();
+  const scroll = document.querySelector('.gantt-timeline-scroll');
+  if (!scroll) return;
+  scroll.scrollBy({
+    left: direction * Math.max(320, scroll.clientWidth * 0.72),
+    behavior: 'smooth',
+  });
 }
 
 function resetToToday() {
-  state.navOffset = 0;
-  renderGantt();
+  state.pendingFocusToday = true;
+  focusTodayAfterRender({ force: true, smooth: true });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1709,6 +1931,17 @@ function bindEvents() {
 
   // Group toggle (delegado)
   document.querySelector('.gantt-left-body')?.addEventListener('click', e => {
+    const hierarchyToggle = e.target.closest('[data-hierarchy-toggle]');
+    if (hierarchyToggle) {
+      const rowId = hierarchyToggle.dataset.hierarchyToggle;
+      const collapsed = { ...state.prefs.collapsedGroups };
+      if (collapsed[rowId]) delete collapsed[rowId];
+      else collapsed[rowId] = true;
+      Preferences.save('collapsedGroups', collapsed);
+      renderGantt();
+      return;
+    }
+
     const toggle = e.target.closest('.gantt-group-toggle');
     if (toggle) {
       const header = toggle.closest('.gantt-group-header');
@@ -1848,14 +2081,19 @@ export function renderGantt() {
   // Processar timeline
   const allItems = cards.map(getCardTimeline);
   const filtered = applyFilters(allItems);
-  const renderedItems = filtered.slice(0, state.visibleLimit);
-  const renderable = renderedItems.filter(item => item.canRender && item.start && item.end);
-  const range = getRange(renderable);
+  const useHierarchy = state.prefs.grouping === 'hierarchy';
+  const hierarchyRows = useHierarchy ? buildHierarchyRows(filtered) : [];
+  const visibleHierarchyRows = useHierarchy ? flattenHierarchyRows(hierarchyRows, state.prefs.collapsedGroups) : [];
+  const renderedItems = useHierarchy ? [] : filtered.slice(0, state.visibleLimit);
+  const renderedRows = useHierarchy ? visibleHierarchyRows.slice(0, state.visibleLimit) : renderedItems;
+  const rangeItems = useHierarchy ? hierarchyRows.filter(row => row.start && row.end) : filtered.filter(item => item.canRender && item.start && item.end);
+  const range = getRange(rangeItems);
   const ticks = getTicks(range, state.prefs.viewMode);
 
   // Armazenar no state
   state.allItems = allItems;
   state.filteredItems = filtered;
+  state.visibleRows = renderedRows;
   state.currentRange = range;
   state.currentTicks = ticks;
 
@@ -1906,14 +2144,14 @@ export function renderGantt() {
       ${filtered.length > 0 ? `
         <div class="gantt-main">
           <div class="gantt-grid">
-            ${renderLeftPanel(renderedItems, state.prefs.grouping, state.prefs.collapsedGroups)}
-            ${renderTimelinePanel(renderedItems, range, ticks, state.prefs.viewMode, state.prefs.grouping, state.prefs.collapsedGroups)}
+            ${useHierarchy ? renderHierarchyLeftPanel(renderedRows) : renderLeftPanel(renderedItems, state.prefs.grouping, state.prefs.collapsedGroups)}
+            ${useHierarchy ? renderHierarchyTimelinePanel(renderedRows, range, ticks, state.prefs.viewMode) : renderTimelinePanel(renderedItems, range, ticks, state.prefs.viewMode, state.prefs.grouping, state.prefs.collapsedGroups)}
           </div>
         </div>
-        ${filtered.length > renderedItems.length ? `
+        ${(useHierarchy ? visibleHierarchyRows.length : filtered.length) > renderedRows.length ? `
           <div style="display:flex;justify-content:center;margin:14px 0;">
             <button class="btn btn-secondary" id="gantt-load-more">
-              Ver mais ${Math.min(GANTT_INCREMENT, filtered.length - renderedItems.length)} de ${filtered.length - renderedItems.length}
+              Ver mais ${Math.min(GANTT_INCREMENT, (useHierarchy ? visibleHierarchyRows.length : filtered.length) - renderedRows.length)} de ${(useHierarchy ? visibleHierarchyRows.length : filtered.length) - renderedRows.length}
             </button>
           </div>
         ` : ''}
@@ -1942,6 +2180,7 @@ export function renderGantt() {
     state.visibleLimit += GANTT_INCREMENT;
     renderGantt();
   });
+  focusTodayAfterRender();
 }
 
 // ═══════════════════════════════════════════════════════════════

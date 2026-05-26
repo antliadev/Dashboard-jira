@@ -5,6 +5,7 @@
 import '../styles/executive.css';
 import { dataService } from '../data/data-service.js';
 import { formatDate, sanitize, sanitizeTitle } from '../utils/helpers.js';
+import { toDate, signedDaysBetween } from '../data/schedule-service.js';
 
 let html2canvasModule = null;
 let jsPDFModule = null;
@@ -77,6 +78,26 @@ function renderScheduleTimeline(schedule) {
   const plannedEnd = schedule.plannedEndDate;
   const effectiveStart = schedule.effectiveStartDate;
   const effectiveEnd = schedule.effectiveEndDate;
+  const dates = [plannedStart, plannedEnd, effectiveStart, effectiveEnd]
+    .map(toDate)
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+  const first = dates[0] || toDate(new Date());
+  const last = dates[dates.length - 1] || first;
+  const totalDays = Math.max(1, signedDaysBetween(first, last) || 1);
+  const position = value => {
+    const date = toDate(value);
+    if (!date) return null;
+    return Math.max(0, Math.min(100, ((signedDaysBetween(first, date) || 0) / totalDays) * 100));
+  };
+  const plannedLeft = position(plannedStart);
+  const plannedRight = position(plannedEnd);
+  const effectiveLeft = position(effectiveStart);
+  const effectiveRight = position(effectiveEnd);
+  const plannedWidth = plannedLeft !== null && plannedRight !== null ? Math.max(4, plannedRight - plannedLeft) : 0;
+  const effectiveWidth = effectiveLeft !== null && effectiveRight !== null ? Math.max(4, effectiveRight - effectiveLeft) : 0;
+  const bufferLeft = effectiveRight !== null && plannedRight !== null ? Math.min(effectiveRight, plannedRight) : null;
+  const bufferWidth = effectiveRight !== null && plannedRight !== null ? Math.max(0, Math.abs(plannedRight - effectiveRight)) : 0;
 
   return `
     <div class="exec-timeline">
@@ -86,9 +107,9 @@ function renderScheduleTimeline(schedule) {
         <span><i class="buffer"></i>Gordura</span>
       </div>
       <div class="exec-timeline-bars">
-        <div class="exec-timeline-bar planned"></div>
-        <div class="exec-timeline-bar effective" style="left:12%;width:52%;"></div>
-        <div class="exec-timeline-buffer ${schedule.bufferDays < 0 ? 'danger' : ''}" style="left:64%;width:24%;">
+        ${plannedWidth ? `<div class="exec-timeline-bar planned" style="left:${plannedLeft}%;width:${plannedWidth}%;"></div>` : '<div class="exec-timeline-empty">Datas previstas em proposta ainda não informadas.</div>'}
+        ${effectiveWidth ? `<div class="exec-timeline-bar effective" style="left:${effectiveLeft}%;width:${effectiveWidth}%;"></div>` : ''}
+        <div class="exec-timeline-buffer ${schedule.bufferDays < 0 ? 'danger' : ''}" style="left:${bufferLeft ?? 0}%;width:${bufferWidth}%;">
           ${schedule.bufferDays !== null ? `${Math.abs(schedule.bufferDays)} dias` : ''}
         </div>
       </div>
@@ -107,13 +128,14 @@ function renderExecutiveDashboard(summary, formatTicket) {
     project, progressPercent, totals, team, risks, achievements,
     nextSteps, lastSync, farol, schedule, deliverables, statusBreakdown,
   } = summary;
-  const farolClass = farol?.cor || 'green';
-  const farolText = farol?.label || 'Saudável';
   const plannedStartValue = schedule.plannedStartDate || '';
   const plannedEndValue = schedule.plannedEndDate || '';
   const lastSyncLabel = lastSync ? new Date(lastSync).toLocaleString('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   }) : '—';
+  const farolClass = farol?.cor || 'green';
+  const farolText = farolClass === 'red' ? 'Risco' : farolClass === 'yellow' ? 'Atenção' : 'Saudável';
+  const topAlert = schedule.alerts?.[0]?.label || 'Cronograma dentro dos critérios atuais.';
 
   return `
     <div class="executive-page executive-v2">
@@ -121,17 +143,27 @@ function renderExecutiveDashboard(summary, formatTicket) {
         <div>
           <h1>Resumo Executivo</h1>
           <div class="exec-project-line">
-            <span class="exec-project-pill">${sanitize(project.key)} · ${sanitize(project.name)}</span>
-            <span class="exec-health-pill ${farolClass}">${sanitize(farolText)}</span>
+            <span class="exec-project-pill"><span class="exec-health-dot ${farolClass}"></span>${sanitize(project.key)} · ${sanitize(project.name)}</span>
           </div>
         </div>
-        <div class="exec-sync">Última atualização dos dados: ${sanitize(lastSyncLabel)}</div>
+        <div class="exec-topbar-actions">
+          <div class="exec-sync">Última atualização dos dados: ${sanitize(lastSyncLabel)}</div>
+          <button class="executive-export-btn" id="export-png-btn" aria-label="Exportar resumo em PNG" onclick="exportExecutivePNG('${encodeURIComponent(project.key)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            PNG
+          </button>
+          <button class="executive-export-btn" id="export-pdf-btn" aria-label="Exportar resumo em PDF" onclick="exportExecutivePDF('${encodeURIComponent(project.key)}')" style="background:linear-gradient(135deg,#10B981,#059669)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            PDF
+          </button>
+        </div>
       </div>
 
+      <div id="executive-export-area">
       <div class="exec-kpi-row">
         <div class="exec-kpi-card farol ${farolClass}">
           <div class="exec-farol-ring"><span></span></div>
-          <div><small>Farol do projeto</small><strong>${sanitize(farolText)}</strong><p>${schedule.alerts?.[0]?.label || 'Cronograma dentro dos critérios atuais.'}</p></div>
+          <div><small>Farol do projeto</small><strong>${sanitize(farolText)}</strong><p>${sanitize(topAlert)}</p></div>
         </div>
         <div class="exec-kpi-card"><small>Total de tickets</small><strong>${totals.issues}</strong><p>100% do total</p></div>
         <div class="exec-kpi-card success"><small>Concluídos</small><strong>${totals.done}</strong><p>${progressPercent}% do total</p></div>
@@ -142,16 +174,22 @@ function renderExecutiveDashboard(summary, formatTicket) {
 
       <div class="exec-main-grid">
         <section class="exec-card exec-schedule-card">
-          <div class="exec-card-title">Cronograma do Projeto</div>
+          <div class="exec-card-title-row">
+            <div>
+              <div class="exec-card-title">Cronograma do Projeto</div>
+              <p>Proposta, execução Jira e margem de segurança em uma visão única.</p>
+            </div>
+            <span class="exec-schedule-health ${farolClass}">${sanitize(farolText)}</span>
+          </div>
           <div class="exec-schedule-layout">
             <form class="exec-schedule-list" id="exec-schedule-form">
-              <label><span>Início previsto (proposta)</span><input type="date" name="plannedStartDate" value="${sanitize(plannedStartValue)}"></label>
-              <label><span>Início efetivo (Jira)</span><strong>${formatDate(schedule.effectiveStartDate)}</strong></label>
-              <label><span>Gap de início</span><strong class="${scheduleToneClass(schedule.startGapDays, 'gap')}">${formatDays(schedule.startGapDays)}</strong></label>
-              <label><span>Fim previsto (proposta)</span><input type="date" name="plannedEndDate" value="${sanitize(plannedEndValue)}"></label>
-              <label><span>Fim efetivo (Jira)</span><strong>${formatDate(schedule.effectiveEndDate)}</strong></label>
-              <label><span>Gordura do projeto</span><strong class="${scheduleToneClass(schedule.bufferDays, 'buffer')}">${formatDays(schedule.bufferDays)}</strong></label>
-              <button type="submit" class="exec-save-btn">Salvar datas de proposta</button>
+              <label class="proposal"><i></i><span>Início previsto (proposta)</span><input type="date" name="plannedStartDate" value="${sanitize(plannedStartValue)}"></label>
+              <label class="jira"><i></i><span>Início efetivo (Jira)</span><strong>${formatDate(schedule.effectiveStartDate)}</strong><small>Menor início encontrado nos tickets</small></label>
+              <label class="gap"><i></i><span>Gap de início</span><strong class="${scheduleToneClass(schedule.startGapDays, 'gap')}">${formatDays(schedule.startGapDays)}</strong><small>${schedule.startGapDays === null ? 'Datas insuficientes' : schedule.startGapDays > 0 ? 'Execução começou após o previsto' : schedule.startGapDays < 0 ? 'Execução antecipada' : 'Execução conforme previsto'}</small></label>
+              <label class="proposal"><i></i><span>Fim previsto (proposta)</span><input type="date" name="plannedEndDate" value="${sanitize(plannedEndValue)}"></label>
+              <label class="jira"><i></i><span>Fim efetivo (Jira)</span><strong>${formatDate(schedule.effectiveEndDate)}</strong><small>Maior fim planejado nos tickets</small></label>
+              <label class="buffer"><i></i><span>Gordura do projeto</span><strong class="${scheduleToneClass(schedule.bufferDays, 'buffer')}">${formatDays(schedule.bufferDays)}</strong><small>${schedule.bufferDays === null ? 'Datas insuficientes' : schedule.bufferDays > 0 ? 'Margem de segurança disponível' : schedule.bufferDays < 0 ? 'Planejado além do vendido' : 'Sem margem de segurança'}</small></label>
+              <div class="exec-save-row"><button type="submit" class="exec-save-btn">Salvar datas de proposta</button></div>
             </form>
             <div class="exec-schedule-metrics">
               <div class="exec-metric-box"><small>Prazo decorrido</small><strong>${formatPercent(schedule.elapsedPercentage)}</strong><div><span style="width:${schedule.elapsedPercentage || 0}%"></span></div><p>Base ${schedule.contractualElapsedPercentage !== null ? 'proposta' : 'Jira'}</p></div>
@@ -220,6 +258,7 @@ function renderExecutiveDashboard(summary, formatTicket) {
           ${risks.length ? risks.slice(0, 4).map(r => `<div class="exec-risk-item ${r.level === 'Alto' ? 'high' : 'medium'}"><strong>${sanitize(r.key)} — ${sanitize(r.title)}</strong><span>${sanitize(r.reason)} · Resp: ${sanitize(r.assignee)}</span><b>${sanitize(r.level)}</b></div>`).join('') : '<div class="executive-list-empty">Nenhum risco crítico identificado</div>'}
         </div>
       </section>
+      </div>
     </div>
   `;
 }

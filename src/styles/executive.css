@@ -935,6 +935,14 @@
   padding: 16px 18px;
 }
 
+.exec-topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .exec-topbar h1 {
   margin: 0 0 10px;
   font-size: 26px;
@@ -963,6 +971,19 @@
 .exec-health-pill.green { color: #22c55e; border-color: rgba(34, 197, 94, .35); }
 .exec-health-pill.yellow { color: #f59e0b; border-color: rgba(245, 158, 11, .35); }
 .exec-health-pill.red { color: #ef4444; border-color: rgba(239, 68, 68, .35); }
+
+.exec-health-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.exec-health-dot.green { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.6); }
+.exec-health-dot.yellow { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.6); }
+.exec-health-dot.red { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
 
 .exec-sync {
   color: rgba(226, 232, 240, 0.66);
@@ -1021,6 +1042,16 @@
   gap: 14px;
 }
 
+.exec-kpi-card.farol strong {
+  display: block;
+  margin: 2px 0 4px;
+  font-size: 24px;
+  color: #f59e0b;
+}
+
+.exec-kpi-card.farol.green strong { color: #22c55e; }
+.exec-kpi-card.farol.red strong { color: #ef4444; }
+
 .exec-farol-ring {
   width: 62px;
   height: 62px;
@@ -1060,6 +1091,50 @@
   margin-bottom: 14px;
 }
 
+.exec-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.exec-card-title-row .exec-card-title {
+  margin-bottom: 4px;
+}
+
+.exec-card-title-row p {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.55);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.exec-schedule-health {
+  flex-shrink: 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.exec-schedule-health.green {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.exec-schedule-health.red {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
 .exec-schedule-card {
   grid-row: span 2;
 }
@@ -1086,13 +1161,21 @@
 }
 
 .exec-schedule-list label::before {
-  content: "";
+  content: none;
+}
+
+.exec-schedule-list label i {
   width: 28px;
   height: 28px;
   border-radius: 7px;
   background: rgba(139, 92, 246, 0.18);
   border: 1px solid rgba(139, 92, 246, 0.25);
 }
+
+.exec-schedule-list label.proposal i { background: rgba(139, 92, 246, .18); border-color: rgba(139, 92, 246, .28); }
+.exec-schedule-list label.jira i { background: rgba(59, 130, 246, .16); border-color: rgba(59, 130, 246, .28); }
+.exec-schedule-list label.gap i { background: rgba(245, 158, 11, .16); border-color: rgba(245, 158, 11, .30); }
+.exec-schedule-list label.buffer i { background: rgba(34, 197, 94, .15); border-color: rgba(34, 197, 94, .30); }
 
 .exec-schedule-list span {
   display: block;
@@ -1104,6 +1187,14 @@
 .exec-schedule-list strong {
   color: #f8fafc;
   font-size: 15px;
+}
+
+.exec-schedule-list small {
+  display: block;
+  color: rgba(226, 232, 240, .48);
+  font-size: 11px;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 
 .exec-schedule-list strong.success,
@@ -1122,9 +1213,13 @@
   padding: 7px 8px;
 }
 
+.exec-save-row {
+  padding: 12px;
+}
+
 .exec-save-btn {
-  width: calc(100% - 24px);
-  margin: 12px;
+  width: 100%;
+  margin: 0;
   border: 1px solid rgba(59, 130, 246, .35);
   background: rgba(59, 130, 246, .14);
   color: #93c5fd;
@@ -1194,6 +1289,7 @@
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
   padding: 14px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, .44), rgba(2, 6, 23, .18));
 }
 
 .exec-timeline-legend,
@@ -1226,6 +1322,7 @@
   position: relative;
   height: 48px;
   margin: 14px 4px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, .15);
 }
 
 .exec-timeline-bar,
@@ -1250,6 +1347,7 @@
 .exec-timeline-buffer {
   top: 24px;
   border: 1px dashed rgba(34, 197, 94, .85);
+  background: rgba(34, 197, 94, .08);
   color: #22c55e;
   font-size: 11px;
   text-align: center;
@@ -1258,7 +1356,22 @@
 
 .exec-timeline-buffer.danger {
   border-color: rgba(239, 68, 68, .85);
+  background: rgba(239, 68, 68, .08);
   color: #ef4444;
+}
+
+.exec-timeline-empty {
+  position: absolute;
+  inset: 7px 0 auto 0;
+  min-height: 28px;
+  border: 1px dashed rgba(245, 158, 11, .35);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(245, 158, 11, .85);
+  background: rgba(245, 158, 11, .06);
+  font-size: 12px;
 }
 
 .exec-timeline-points span {
