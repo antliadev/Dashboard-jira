@@ -1,5 +1,8 @@
 /**
  * data.js - Tela simples para iniciar e acompanhar sync Jira no backend.
+ *
+ * As credenciais do Jira sao lidas de variaveis de ambiente no servidor.
+ * O frontend nunca recebe ou envia credenciais.
  */
 import { dataService } from '../data/data-service.js';
 import { renderSidebar } from '../components/sidebar.js';
@@ -74,7 +77,7 @@ function getStatusMessage() {
     return {
       className: 'sync-status-idle',
       title: 'Aguardando sincronizacao.',
-      detail: 'Preencha os dados do Jira e inicie uma nova importacao.'
+      detail: 'Clique em "Iniciar sincronizacao" para importar os tickets do Jira.'
     };
   }
 
@@ -104,7 +107,7 @@ function getStatusMessage() {
 
   return {
     className: 'sync-status-error',
-    title: 'Erro na sincronização.',
+    title: 'Erro na sincronizacao.',
     detail: syncStatus.error || 'Erro desconhecido durante a sincronizacao.'
   };
 }
@@ -122,35 +125,23 @@ function renderDataContent() {
   content.innerHTML = `
     <div class="sync-page">
       <section class="sync-panel">
-        <div class="sync-form-grid">
-          <div class="form-group">
-            <label for="jira-base-url">Base URL</label>
-            <input type="text" id="jira-base-url" placeholder="https://empresa.atlassian.net" ${isProcessing ? 'disabled' : ''}>
+        <div class="sync-panel-info">
+          <div class="sync-panel-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
           </div>
-
-          <div class="form-group">
-            <label for="jira-email">E-mail</label>
-            <input type="email" id="jira-email" placeholder="seu-email@empresa.com" autocomplete="email" ${isProcessing ? 'disabled' : ''}>
-          </div>
-
-          <div class="form-group">
-            <div class="sync-token-label">
-              <label for="jira-token">API Token</label>
-              <a
-                class="btn btn-secondary sync-token-link"
-                href="https://id.atlassian.com/manage-profile/security/api-tokens"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Criar API Token
-              </a>
-            </div>
-            <input type="password" id="jira-token" placeholder="Cole seu API Token" autocomplete="off" ${isProcessing ? 'disabled' : ''}>
+          <div>
+            <strong>Sincronizacao gerenciada pelo servidor</strong>
+            <p>As credenciais do Jira estao configuradas no backend via variaveis de ambiente.</p>
+            <p>Nao e necessario preencher nenhum dado no navegador.</p>
           </div>
         </div>
 
         <button class="btn btn-primary" id="btn-start-sync" ${isProcessing ? 'disabled' : ''}>
-          ${isProcessing ? '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Sincronizando...' : 'Iniciar sincronização'}
+          ${isProcessing
+            ? '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Sincronizando...'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Iniciar sincronizacao'}
         </button>
       </section>
 
@@ -188,23 +179,13 @@ function renderDataContent() {
 function setupEventListeners() {
   document.getElementById('btn-start-sync')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-start-sync');
-    const credentials = getFormData();
-
-    if (!credentials.baseUrl || !credentials.email || !credentials.token) {
-      syncStatus = {
-        status: 'error',
-        error: 'Preencha Base URL, E-mail e API Token para iniciar a sincronizacao.',
-        logs: []
-      };
-      renderDataContent();
-      return;
-    }
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Iniciando...';
 
     try {
-      const result = await dataService.startJiraSync(credentials);
+      // Chama endpoint que usa apenas env vars (sem enviar credenciais do frontend)
+      const result = await dataService.startJiraSyncFromEnv();
       syncStatus = result.job || {
         id: result.jobId,
         status: 'queued',
@@ -226,20 +207,6 @@ function setupEventListeners() {
       renderDataContent();
     }
   });
-}
-
-function getFormData() {
-  let baseUrl = document.getElementById('jira-base-url')?.value?.trim() || '';
-  if (baseUrl && !baseUrl.startsWith('http')) {
-    baseUrl = `https://${baseUrl}`;
-  }
-  baseUrl = baseUrl.replace(/\/$/, '').toLowerCase();
-
-  return {
-    baseUrl,
-    email: document.getElementById('jira-email')?.value?.trim() || '',
-    token: document.getElementById('jira-token')?.value?.trim() || ''
-  };
 }
 
 function addDataStyles() {
@@ -264,36 +231,51 @@ function addDataStyles() {
       padding: 24px;
     }
 
-    .sync-form-grid {
-      display: grid;
-      gap: 18px;
+    .sync-panel-info {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
       margin-bottom: 24px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .sync-panel-icon {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border-radius: 10px;
+      color: var(--accent);
+    }
+
+    .sync-panel-info strong {
+      display: block;
+      color: var(--text-primary);
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .sync-panel-info p {
+      margin: 0 0 4px 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .sync-panel-info p:last-child {
+      margin-bottom: 0;
     }
 
     .sync-panel .btn {
       width: 100%;
       justify-content: center;
       min-height: 44px;
-    }
-
-    .sync-token-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 6px;
-    }
-
-    .sync-token-label label {
-      margin: 0;
-    }
-
-    .sync-token-link {
-      width: auto !important;
-      min-height: 32px !important;
-      padding: 6px 10px;
-      font-size: 12px;
-      white-space: nowrap;
     }
 
     .sync-status {

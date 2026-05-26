@@ -230,7 +230,8 @@ class DataService {
   }
 
   /**
-   * Inicia sincronizacao no backend e retorna o jobId.
+   * Inicia sincronizacao no backend usando credenciais fornecidas.
+   * @param {Object} credentials - { baseUrl, email, token, jql }
    */
   async startJiraSync(credentials) {
     try {
@@ -269,6 +270,43 @@ class DataService {
       return result;
     } catch (error) {
       console.error('[DataService] Erro ao iniciar sincronizacao:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Inicia sincronizacao no backend usando apenas variaveis de ambiente.
+   * Nao envia credenciais do frontend — o backend le JIRA_BASE_URL,
+   * JIRA_EMAIL e JIRA_API_TOKEN do .env ou ambiente.
+   */
+  async startJiraSyncFromEnv() {
+    try {
+      const response = await fetch(`${this._apiBase}/sync/start`, {
+        method: 'POST',
+        headers: this._getHeaders()
+        // Sem body — credenciais sao lidas de env vars no servidor
+      });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[DataService] Resposta nao e JSON:', text.substring(0, 200));
+        throw new Error(`Erro ao sincronizar: resposta invalida do servidor (${response.status})`);
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        // 409 = SYNC_ALREADY_RUNNING
+        if (response.status === 409 && result.code === 'SYNC_ALREADY_RUNNING') {
+          throw new Error(result.error);
+        }
+        throw new Error(result.error || 'Erro ao sincronizar');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[DataService] Erro ao iniciar sincronizacao via env:', error.message);
       throw error;
     }
   }
