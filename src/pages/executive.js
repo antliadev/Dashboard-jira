@@ -19,6 +19,211 @@ async function loadJsPDF() {
   return jsPDFModule;
 }
 
+function formatPercent(value) {
+  return value === null || value === undefined ? '—' : `${value}%`;
+}
+
+function formatDays(value, suffix = 'dias') {
+  if (value === null || value === undefined) return '—';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value} ${suffix}`;
+}
+
+function scheduleToneClass(value, type = 'variance') {
+  if (value === null || value === undefined) return 'muted';
+  if (type === 'buffer') {
+    if (value > 0) return 'success';
+    if (value === 0) return 'warning';
+    return 'danger';
+  }
+  if (type === 'gap') {
+    if (value > 0) return 'warning';
+    if (value === 0) return 'success';
+    return 'success';
+  }
+  if (value >= 0) return 'success';
+  if (value > -10) return 'warning';
+  return 'danger';
+}
+
+function riskLabel(risk) {
+  const labels = { low: 'Baixo', medium: 'Médio', high: 'Alto' };
+  return labels[risk] || risk || '—';
+}
+
+function statusLabel(status) {
+  const labels = {
+    done: 'Concluído',
+    blocked: 'Bloqueado',
+    in_progress: 'Em andamento',
+    todo: 'Não iniciado',
+  };
+  return labels[status] || status || '—';
+}
+
+function renderProgressLine(label, value, total, colorClass) {
+  const percent = total > 0 ? Math.round((value / total) * 100) : 0;
+  return `
+    <div class="exec-status-row">
+      <span>${sanitize(label)}</span>
+      <div class="exec-status-track"><div class="exec-status-fill ${colorClass}" style="width:${percent}%"></div></div>
+      <strong>${value} (${percent}%)</strong>
+    </div>
+  `;
+}
+
+function renderScheduleTimeline(schedule) {
+  const plannedStart = schedule.plannedStartDate;
+  const plannedEnd = schedule.plannedEndDate;
+  const effectiveStart = schedule.effectiveStartDate;
+  const effectiveEnd = schedule.effectiveEndDate;
+
+  return `
+    <div class="exec-timeline">
+      <div class="exec-timeline-legend">
+        <span><i class="planned"></i>Período previsto (proposta)</span>
+        <span><i class="effective"></i>Período efetivo (Jira)</span>
+        <span><i class="buffer"></i>Gordura</span>
+      </div>
+      <div class="exec-timeline-bars">
+        <div class="exec-timeline-bar planned"></div>
+        <div class="exec-timeline-bar effective" style="left:12%;width:52%;"></div>
+        <div class="exec-timeline-buffer ${schedule.bufferDays < 0 ? 'danger' : ''}" style="left:64%;width:24%;">
+          ${schedule.bufferDays !== null ? `${Math.abs(schedule.bufferDays)} dias` : ''}
+        </div>
+      </div>
+      <div class="exec-timeline-points">
+        <span><strong>${formatDate(plannedStart)}</strong><small>Início previsto</small></span>
+        <span><strong>${formatDate(effectiveStart)}</strong><small>Início efetivo</small></span>
+        <span><strong>${formatDate(effectiveEnd)}</strong><small>Fim efetivo</small></span>
+        <span><strong>${formatDate(plannedEnd)}</strong><small>Fim previsto</small></span>
+      </div>
+    </div>
+  `;
+}
+
+function renderExecutiveDashboard(summary, formatTicket) {
+  const {
+    project, progressPercent, totals, team, risks, achievements,
+    nextSteps, lastSync, farol, schedule, deliverables, statusBreakdown,
+  } = summary;
+  const farolClass = farol?.cor || 'green';
+  const farolText = farol?.label || 'Saudável';
+  const plannedStartValue = schedule.plannedStartDate || '';
+  const plannedEndValue = schedule.plannedEndDate || '';
+  const lastSyncLabel = lastSync ? new Date(lastSync).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  }) : '—';
+
+  return `
+    <div class="executive-page executive-v2">
+      <div class="exec-topbar">
+        <div>
+          <h1>Resumo Executivo</h1>
+          <div class="exec-project-line">
+            <span class="exec-project-pill">${sanitize(project.key)} · ${sanitize(project.name)}</span>
+            <span class="exec-health-pill ${farolClass}">${sanitize(farolText)}</span>
+          </div>
+        </div>
+        <div class="exec-sync">Última atualização dos dados: ${sanitize(lastSyncLabel)}</div>
+      </div>
+
+      <div class="exec-kpi-row">
+        <div class="exec-kpi-card farol ${farolClass}">
+          <div class="exec-farol-ring"><span></span></div>
+          <div><small>Farol do projeto</small><strong>${sanitize(farolText)}</strong><p>${schedule.alerts?.[0]?.label || 'Cronograma dentro dos critérios atuais.'}</p></div>
+        </div>
+        <div class="exec-kpi-card"><small>Total de tickets</small><strong>${totals.issues}</strong><p>100% do total</p></div>
+        <div class="exec-kpi-card success"><small>Concluídos</small><strong>${totals.done}</strong><p>${progressPercent}% do total</p></div>
+        <div class="exec-kpi-card progress"><small>Em andamento</small><strong>${totals.inProgress}</strong><p>${totals.issues ? Math.round((totals.inProgress / totals.issues) * 100) : 0}% do total</p></div>
+        <div class="exec-kpi-card danger"><small>Bloqueados</small><strong>${totals.blocked}</strong><p>${totals.issues ? Math.round((totals.blocked / totals.issues) * 100) : 0}% do total</p></div>
+        <div class="exec-kpi-card warning"><small>Fallback</small><strong>${totals.fallback || 0}</strong><p>Data por criação Jira</p></div>
+      </div>
+
+      <div class="exec-main-grid">
+        <section class="exec-card exec-schedule-card">
+          <div class="exec-card-title">Cronograma do Projeto</div>
+          <div class="exec-schedule-layout">
+            <form class="exec-schedule-list" id="exec-schedule-form">
+              <label><span>Início previsto (proposta)</span><input type="date" name="plannedStartDate" value="${sanitize(plannedStartValue)}"></label>
+              <label><span>Início efetivo (Jira)</span><strong>${formatDate(schedule.effectiveStartDate)}</strong></label>
+              <label><span>Gap de início</span><strong class="${scheduleToneClass(schedule.startGapDays, 'gap')}">${formatDays(schedule.startGapDays)}</strong></label>
+              <label><span>Fim previsto (proposta)</span><input type="date" name="plannedEndDate" value="${sanitize(plannedEndValue)}"></label>
+              <label><span>Fim efetivo (Jira)</span><strong>${formatDate(schedule.effectiveEndDate)}</strong></label>
+              <label><span>Gordura do projeto</span><strong class="${scheduleToneClass(schedule.bufferDays, 'buffer')}">${formatDays(schedule.bufferDays)}</strong></label>
+              <button type="submit" class="exec-save-btn">Salvar datas de proposta</button>
+            </form>
+            <div class="exec-schedule-metrics">
+              <div class="exec-metric-box"><small>Prazo decorrido</small><strong>${formatPercent(schedule.elapsedPercentage)}</strong><div><span style="width:${schedule.elapsedPercentage || 0}%"></span></div><p>Base ${schedule.contractualElapsedPercentage !== null ? 'proposta' : 'Jira'}</p></div>
+              <div class="exec-metric-box success"><small>Conclusão real</small><strong>${formatPercent(schedule.completionPercentage)}</strong><div><span style="width:${schedule.completionPercentage || 0}%"></span></div><p>${totals.done} de ${totals.issues} tickets concluídos</p></div>
+              <div class="exec-metric-box variance ${scheduleToneClass(schedule.scheduleVariance)}"><small>Diferença (real vs esperado)</small><strong>${formatDays(schedule.scheduleVariance, 'p.p.')}</strong><p>${schedule.scheduleVariance === null ? 'Dados insuficientes.' : schedule.scheduleVariance >= 0 ? 'Projeto acima ou no ritmo esperado.' : 'Projeto abaixo do andamento esperado.'}</p></div>
+              ${renderScheduleTimeline(schedule)}
+            </div>
+          </div>
+        </section>
+
+        <section class="exec-card">
+          <div class="exec-card-title">Progresso por Status</div>
+          <div class="exec-status-list">
+            ${statusBreakdown.slice(0, 6).map((item, idx) => renderProgressLine(item.name, item.count, totals.issues, ['success','progress','danger','warning','planned','muted'][idx] || 'muted')).join('')}
+          </div>
+        </section>
+
+        <section class="exec-card">
+          <div class="exec-card-title">Time do Projeto</div>
+          <div class="exec-team-row">
+            ${team.slice(0, 5).map(member => `
+              <div class="exec-team-member">
+                ${member.avatar ? `<img src="${sanitize(member.avatar)}" alt="">` : `<div class="exec-avatar-fallback">${sanitize(member.name?.slice(0, 2) || 'NA')}</div>`}
+                <strong>${sanitize(member.name)}</strong>
+                <span>${member.totalTickets} tickets</span>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      </div>
+
+      <div class="exec-bottom-grid">
+        <section class="exec-card">
+          <div class="exec-card-title">Entregáveis</div>
+          <div class="exec-deliverables">
+            ${(deliverables || []).slice(0, 6).map(item => `
+              <div class="exec-deliverable-row">
+                <strong>${sanitize(item.name)}</strong>
+                <span>${formatDate(item.plannedStartDate)} - ${formatDate(item.plannedEndDate)}</span>
+                <div class="exec-mini-track"><i style="width:${item.completionPercentage}%"></i></div>
+                <em>${item.completionPercentage}%</em>
+                <b class="${item.riskStatus}">${riskLabel(item.riskStatus)}</b>
+              </div>
+            `).join('') || '<div class="executive-list-empty">Nenhum entregável identificado</div>'}
+          </div>
+        </section>
+
+        <section class="exec-card">
+          <div class="exec-card-title">Últimas Conquistas</div>
+          <div class="exec-compact-list">
+            ${achievements.length ? achievements.map(a => `<div><b>✓</b><span>${formatTicket(a)}<small>${formatDate(a.resolvedAt)}</small></span></div>`).join('') : '<div class="executive-list-empty">Nenhuma conquista ainda</div>'}
+          </div>
+        </section>
+
+        <section class="exec-card">
+          <div class="exec-card-title">Próximos Passos</div>
+          <div class="exec-compact-list next">
+            ${nextSteps.length ? nextSteps.map(n => `<div><b>→</b><span>${formatTicket(n)}<small>${sanitize(n.status)}</small></span></div>`).join('') : '<div class="executive-list-empty">Nenhum próximo passo</div>'}
+          </div>
+        </section>
+      </div>
+
+      <section class="exec-card exec-risk-card">
+        <div class="exec-card-title">Riscos Identificados</div>
+        <div class="exec-risk-row">
+          ${risks.length ? risks.slice(0, 4).map(r => `<div class="exec-risk-item ${r.level === 'Alto' ? 'high' : 'medium'}"><strong>${sanitize(r.key)} — ${sanitize(r.title)}</strong><span>${sanitize(r.reason)} · Resp: ${sanitize(r.assignee)}</span><b>${sanitize(r.level)}</b></div>`).join('') : '<div class="executive-list-empty">Nenhum risco crítico identificado</div>'}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 // Funções de exportação no escopo global
 window.exportExecutivePNG = async function(projectKey) {
   // Decodificar se vier encodeado
@@ -138,6 +343,30 @@ window.exportExecutivePDF = async function(projectKey) {
   }
 };
 
+window.saveExecutiveSchedule = async function(projectKey, form) {
+  const btn = form.querySelector('button[type="submit"]');
+  const originalText = btn?.textContent || '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+  }
+
+  try {
+    await dataService.saveProjectMetadata(projectKey, {
+      plannedStartDate: form.plannedStartDate.value || null,
+      plannedEndDate: form.plannedEndDate.value || null,
+    });
+    renderExecutiveContent(projectKey);
+  } catch (error) {
+    alert('Erro ao salvar datas: ' + error.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+};
+
 export function renderExecutive(params) {
   const projectKey = params?.projectKey;
   
@@ -237,6 +466,13 @@ function renderExecutiveContent(projectKey) {
     const title = item.title || 'Sem título';
     return `${sanitize(item.key)} — ${sanitize(title)}`;
   };
+
+  content.innerHTML = renderExecutiveDashboard(summary, formatTicket);
+  document.getElementById('exec-schedule-form')?.addEventListener('submit', event => {
+    event.preventDefault();
+    window.saveExecutiveSchedule(project.key, event.currentTarget);
+  });
+  return;
 
   content.innerHTML = `
     <div class="executive-page">

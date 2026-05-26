@@ -19,6 +19,10 @@ import {
   fetchDashboardDataFromDatabase,
   clearJiraDashboardCache
 } from '../../lib/jiraService.js';
+import {
+  listProjectMetadata,
+  upsertProjectMetadata,
+} from '../../lib/projectMetadataService.js';
 import { createSyncJob, createSyncJobFromEnv, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
 
 const router = express.Router();
@@ -272,6 +276,36 @@ router.get('/dashboard', async (req, res) => {
     });
   } catch (error) {
     console.error('[dashboard] Erro:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/project-metadata', async (req, res) => {
+  try {
+    const result = await listProjectMetadata(req.query?.projectKey || null);
+    return res.json(result);
+  } catch (error) {
+    console.error('[project-metadata] Erro:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/project-metadata', async (req, res) => {
+  try {
+    const result = await upsertProjectMetadata(req.body || {});
+    return res.status(result.persistence === 'supabase' ? 200 : 202).json(result);
+  } catch (error) {
+    console.error('[project-metadata] Erro ao salvar:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/project-metadata', async (req, res) => {
+  try {
+    const result = await upsertProjectMetadata(req.body || {});
+    return res.status(result.persistence === 'supabase' ? 200 : 202).json(result);
+  } catch (error) {
+    console.error('[project-metadata] Erro ao salvar:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

@@ -9,6 +9,7 @@ import {
   DataSourceType, resolveStatusCategory, StatusCategory,
   isCardOverdue, calculateProjectProgress, calculateProjectHealth,
 } from './models.js';
+import { buildProjectScheduleSummary } from './schedule-service.js';
 
 class DataService {
   constructor() {
@@ -22,6 +23,7 @@ class DataService {
     this._apiStatus = 'disconnected';
     this._config = null;
     this._apiBase = '/api/jira';
+    this._projectMetadata = new Map();
     this._loadPromise = null;
     this._loadError = null;
     this._hasLoaded = false;
@@ -383,6 +385,9 @@ class DataService {
       }
       
       const data = await response.json();
+      await this.loadProjectMetadata().catch(error => {
+        console.warn('[DataService] Metadata de projetos indisponivel:', error.message);
+      });
       this._rawJiraData = data;
       this.transformJiraData(data);
       this._source = DataSourceType.API;
@@ -410,6 +415,101 @@ class DataService {
     } finally {
       this._loadPromise = null;
     }
+  }
+
+  _metadataStorageKey(projectKey = '') {
+    return projectKey ? `jiraDash.projectMetadata.${projectKey}` : 'jiraDash.projectMetadata';
+  }
+
+  _loadLocalProjectMetadata() {
+    try {
+      const raw = localStorage.getItem(this._metadataStorageKey());
+      const list = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(list)) {
+        list.forEach(item => {
+          if (item?.projectKey) this._projectMetadata.set(item.projectKey, item);
+        });
+      }
+    } catch {
+      // ignore corrupted local fallback
+    }
+  }
+
+  _persistLocalProjectMetadata() {
+    try {
+      localStorage.setItem(this._metadataStorageKey(), JSON.stringify([...this._projectMetadata.values()]));
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  async loadProjectMetadata(projectKey = null) {
+    this._loadLocalProjectMetadata();
+
+    try {
+      const url = projectKey
+        ? `${this._apiBase}/project-metadata?projectKey=${encodeURIComponent(projectKey)}`
+        : `${this._apiBase}/project-metadata`;
+      const response = await this._fetchWithTimeout(url, {
+        headers: this._getHeaders(),
+      }, 8000);
+      if (!response.ok) return [...this._projectMetadata.values()];
+      const result = await response.json();
+      const list = Array.isArray(result.metadata) ? result.metadata : [];
+      list.forEach(item => {
+        if (item?.projectKey) this._projectMetadata.set(item.projectKey, item);
+      });
+      this._persistLocalProjectMetadata();
+      return list;
+    } catch (error) {
+      this._loadLocalProjectMetadata();
+      return [...this._projectMetadata.values()];
+    }
+  }
+
+  getProjectMetadata(projectKey) {
+    return this._projectMetadata.get(String(projectKey || '').toUpperCase()) || null;
+  }
+
+  async saveProjectMetadata(projectKey, payload = {}) {
+    const normalizedKey = String(projectKey || payload.projectKey || '').trim().toUpperCase();
+    if (!normalizedKey) throw new Error('Projeto obrigatorio.');
+
+    const project = this.getProjectByKey(normalizedKey) || this.getProjectById(payload.projectId);
+    const metadata = {
+      projectKey: normalizedKey,
+      projectId: project?.id || payload.projectId || null,
+      projectName: project?.name || payload.projectName || null,
+      plannedStartDate: payload.plannedStartDate || null,
+      plannedEndDate: payload.plannedEndDate || null,
+      notes: payload.notes || '',
+      updatedAt: new Date().toISOString(),
+    };
+
+    this._projectMetadata.set(normalizedKey, metadata);
+    this._persistLocalProjectMetadata();
+
+    let persistence = 'localStorage';
+    try {
+      const response = await fetch(`${this._apiBase}/project-metadata`, {
+        method: 'PATCH',
+        headers: this._getHeaders(),
+        body: JSON.stringify(metadata),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        persistence = result.persistence || persistence;
+        if (result.metadata?.projectKey) {
+          this._projectMetadata.set(result.metadata.projectKey, result.metadata);
+        }
+      }
+    } catch (error) {
+      console.warn('[DataService] Salvando metadata apenas localmente:', error.message);
+    }
+
+    this.transformJiraData(this._rawJiraData || { issues: [], projects: [], analysts: [] });
+    this._notify();
+    return { metadata: this._projectMetadata.get(normalizedKey), persistence };
   }
 
   /**
@@ -440,7 +540,11 @@ class DataService {
       lead: null,
       statusFlow: [],
       createdAt: new Date().toISOString(),
-      avatarUrl: p.avatar
+      avatarUrl: p.avatar,
+      plannedStartDate: this.getProjectMetadata(p.key)?.plannedStartDate || null,
+      plannedEndDate: this.getProjectMetadata(p.key)?.plannedEndDate || null,
+      planningNotes: this.getProjectMetadata(p.key)?.notes || '',
+      planningUpdatedAt: this.getProjectMetadata(p.key)?.updatedAt || null,
     }));
     projects.forEach(project => projectByKey.set(project.key, project));
     
@@ -480,6 +584,7 @@ class DataService {
       const plannedStartDate = i.planned_start_date || i.start_date || i.plannedStartDate || i.startDate || null;
       const plannedEndDate = i.planned_end_date || i.plannedEndDate || dueDate || null;
       const parentKey   = i.parent_key || null;
+      const parentTitle = i.parent_title || null;
       const issueId     = i.issue_id;
       const issueKey    = i.issue_key;
       this._rawIssueById.set(issueId, i);
@@ -513,9 +618,13 @@ class DataService {
         sprint: null,
         storyPoints: 0,
         labels: i.labels || [],
+        components: i.components || [],
+        fixVersions: i.fix_versions || i.fixVersions || [],
         timeEstimated: 0,
         timeSpent: 0,
         epicKey: parentKey,
+        parentKey,
+        parentTitle,
         isInconsistent
       };
     });
@@ -820,6 +929,15 @@ class DataService {
     }
 
     const project = projectIssues[0].project;
+    const projectModel = this.getProjectByKey(projectKey) || {
+      id: project.id,
+      key: project.key,
+      name: project.name,
+      plannedStartDate: this.getProjectMetadata(projectKey)?.plannedStartDate || null,
+      plannedEndDate: this.getProjectMetadata(projectKey)?.plannedEndDate || null,
+    };
+    const projectCards = this.getCardsByProject(projectModel.id);
+    const schedule = buildProjectScheduleSummary(projectModel, projectCards);
     const totals = {
       issues: projectIssues.length,
       done: 0,
@@ -829,7 +947,8 @@ class DataService {
       notStarted: 0,
       ready4Test: 0,
       validation: 0,
-      cancelled: 0
+      cancelled: 0,
+      fallback: projectCards.filter(card => card.dateSource === 'created_at_fallback').length,
     };
 
     // Contagem por status
@@ -1053,14 +1172,14 @@ class DataService {
       diferencaPercentual = Math.max(0, Math.round((100 - percentualExecucao) * 100) / 100);
     }
 
-    let farolCor = 'green';
-    let farolLabel = 'Verde';
-    if (diferencaPercentual > 3) {
+    let farolCor = schedule.healthStatus || 'green';
+    let farolLabel = farolCor === 'red' ? 'Risco' : farolCor === 'yellow' ? 'Atenção' : 'Saudável';
+    if (schedule.healthStatus === 'green' && diferencaPercentual > 3) {
       farolCor = 'red';
-      farolLabel = 'Vermelho';
-    } else if (diferencaPercentual > 1) {
+      farolLabel = 'Risco';
+    } else if (schedule.healthStatus === 'green' && diferencaPercentual > 1) {
       farolCor = 'yellow';
-      farolLabel = 'Amarelo';
+      farolLabel = 'Atenção';
     }
 
     const farol = {
@@ -1071,6 +1190,17 @@ class DataService {
       diferencaPercentual,
       dataReferencia: yesterday.toISOString()
     };
+
+    const scheduleRisks = schedule.alerts
+      .filter(alert => alert.level === 'critical' || alert.level === 'warning')
+      .slice(0, 6)
+      .map(alert => ({
+        level: alert.level === 'critical' ? 'Alto' : 'Médio',
+        key: alert.code,
+        title: alert.label,
+        reason: 'Cronograma',
+        assignee: 'Sistema'
+      }));
 
     // Insights textuais
     const insights = [
@@ -1104,13 +1234,16 @@ class DataService {
       totals,
       statusBreakdown,
       team,
-      risks,
+      risks: [...scheduleRisks, ...risks].slice(0, 8),
       achievements,
       nextSteps,
       insights,
       lastSync: rawData.lastSyncedAt,
       predominantPriority,
-      farol
+      farol,
+      schedule,
+      deliverables: schedule.deliverables,
+      alerts: schedule.alerts
     };
   }
 
