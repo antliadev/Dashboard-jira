@@ -19,7 +19,7 @@ import {
   fetchDashboardDataFromDatabase,
   clearJiraDashboardCache
 } from '../../lib/jiraService.js';
-import { createSyncJob, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
+import { createSyncJob, createSyncJobFromEnv, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
 
 const router = express.Router();
 
@@ -197,6 +197,42 @@ router.post('/sync', async (req, res) => {
 
   } catch (error) {
     console.error('[sync] Erro:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/jira/sync/start — Sincroniza usando apenas env vars
+// ─────────────────────────────────────────────
+router.post('/sync/start', async (req, res) => {
+  try {
+    const sessionId = req.headers['x-session-id'] || null;
+    const { job, credentials, durable, credentialsPersisted } = await createSyncJobFromEnv(sessionId);
+
+    setImmediate(() => {
+      runSyncJob(job.id, credentials).catch(error => {
+        console.error('[sync/start] Erro em background:', error.message);
+      });
+    });
+
+    return res.status(202).json({
+      success: true,
+      message: 'Sincronizacao iniciada no backend (env vars).',
+      jobId: job.id,
+      job,
+      durable,
+      credentialsPersisted
+    });
+  } catch (error) {
+    console.error('[sync/start] Erro:', error.message);
+    if (error.code === 'SYNC_ALREADY_RUNNING') {
+      return res.status(409).json({
+        success: false,
+        error: error.message,
+        code: 'SYNC_ALREADY_RUNNING',
+        job: error.job
+      });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });
