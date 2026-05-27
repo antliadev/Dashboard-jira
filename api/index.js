@@ -5,10 +5,11 @@ import app from '../server/index.js';
 
 export default function handler(req, res) {
   if (req.url === '/api/debug') {
-    // Step 6: text/plain CT + long text with curly braces
+    // Step 7: JSON.stringify of a hardcoded object
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/plain');
-    res.end('{ "this": "has", "braces": true }');
+    const data = { a: 1, b: "hello" };
+    res.end(JSON.stringify(data));
     return;
   }
 
