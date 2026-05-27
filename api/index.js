@@ -1,33 +1,38 @@
 /**
  * api/index.js — Single entry point for all Vercel API routes.
- *
- * Minimal handler: just wraps Express and handles body parsing.
- * Vercel's Node.js runtime passes native req/res. The body is
- * available via different mechanisms depending on runtime version.
  */
 import app from '../server/index.js';
 
 export default function handler(req, res) {
-  // Debug: dump body info
+  // Debug without touching body at all
   if (req.url === '/api/debug') {
-    const bodyInfo = {
+    res.status(200).json({
       method: req.method,
-      url: req.url,
       ct: req.headers['content-type'],
-      cl: req.headers['content-length'],
       bodyType: typeof req.body,
-      bodyIsBuffer: Buffer.isBuffer(req.body),
-      bodyIsString: typeof req.body === 'string',
-      bodyIsObj: typeof req.body === 'object' && !Buffer.isBuffer(req.body),
-      bodyVal: (() => {
-        try { return JSON.stringify(req.body).slice(0, 200); } catch { return String(req.body).slice(0, 200); }
+      isBuffer: Buffer.isBuffer(req.body),
+      isString: typeof req.body === 'string',
+      isObj: typeof req.body === 'object' && !Buffer.isBuffer(req.body),
+      val: (() => {
+        try { return JSON.stringify(req.body).slice(0, 500); }
+        catch { return String(req.body).slice(0, 500); }
       })(),
-      bodyLen: Buffer.isBuffer(req.body) ? req.body.length : (typeof req.body === 'string' ? req.body.length : 'N/A'),
-      hasOn: typeof req.on === 'function',
-    };
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(bodyInfo));
+    });
     return;
+  }
+
+  // Normalize body for non-GET JSON requests
+  if (req.method !== 'GET' && req.method !== 'DELETE') {
+    const ct = req.headers['content-type'] || '';
+    if (ct.startsWith('application/json')) {
+      if (Buffer.isBuffer(req.body)) {
+        try { req.body = JSON.parse(req.body.toString('utf8')); } catch { req.body = {}; }
+      } else if (typeof req.body === 'string') {
+        try { req.body = JSON.parse(req.body); } catch { req.body = {}; }
+      } else if (!req.body || typeof req.body !== 'object') {
+        req.body = {};
+      }
+    }
   }
 
   app(req, res);
