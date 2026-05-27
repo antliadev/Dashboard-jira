@@ -1,19 +1,31 @@
 /**
- * api/index.js — Test Express import + body inspection
+ * api/index.js — Single entry point for all Vercel API routes.
+ *
+ * Dynamically import Express inside the handler to avoid 
+ * module-level side effects that may interfere with Vercel rewrites.
  */
-import app from '../server/index.js';
-
-export default function handler(req, res) {
-  // Inspect body WITHOUT calling app()
-  let bodyInfo;
+export default async function handler(req, res) {
   try {
-    if (Buffer.isBuffer(req.body)) bodyInfo = 'Buffer[' + req.body.length + ']';
-    else if (typeof req.body === 'string') bodyInfo = 'string(' + req.body.length + '): ' + req.body.slice(0, 100);
-    else if (typeof req.body === 'object' && req.body !== null) bodyInfo = 'object: ' + JSON.stringify(req.body).slice(0, 200);
-    else bodyInfo = String(req.body);
-  } catch (e) { bodyInfo = 'ERROR: ' + e.message; }
-  
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/plain');
-  res.end('bodyType=' + typeof req.body + ' body=' + bodyInfo);
+    const { default: app } = await import('../server/index.js');
+    
+    // Normalize body before Express processes it
+    if (req.method !== 'GET' && req.method !== 'DELETE') {
+      const ct = req.headers['content-type'] || '';
+      if (ct.startsWith('application/json')) {
+        if (Buffer.isBuffer(req.body)) {
+          try { req.body = JSON.parse(req.body.toString('utf8')); } catch { req.body = {}; }
+        } else if (typeof req.body === 'string') {
+          try { req.body = JSON.parse(req.body); } catch { req.body = {}; }
+        } else if (typeof req.body !== 'object' || req.body === null) {
+          req.body = {};
+        }
+      }
+    }
+    
+    app(req, res);
+  } catch (err) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Import error', details: err.message }));
+  }
 }
