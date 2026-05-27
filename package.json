@@ -24,6 +24,7 @@
     "express": "^4.21.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
-    "node-cache": "^5.1.2"
+    "node-cache": "^5.1.2",
+    "serverless-http": "^4.0.0"
   }
 }

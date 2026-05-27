@@ -1,6 +1,9 @@
 /**
  * api/index.js — Single entry point for all Vercel API routes.
  *
+ * Uses serverless-http to wrap the Express app, ensuring correct
+ * body parsing in Vercel's serverless environment.
+ *
  * Reuses the Express app from server/index.js which already has
  * all /api/auth and /api/jira/* routes defined. This reduces the
  * serverless function count from 15 to 2 (this file + sync/worker).
@@ -27,5 +30,8 @@
  * NOT covered (handled separately):
  *   /api/jira/sync/worker    (CRON-only, kept as standalone function)
  */
+import serverless from 'serverless-http';
 import app from '../server/index.js';
-export default app;
+
+export const handler = serverless(app);
+export default handler;
