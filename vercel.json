@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.js": {
+    "api/[...slug].js": {
       "maxDuration": 60
     },
     "api/jira/sync/worker.js": {
@@ -16,10 +16,6 @@
     }
   ],
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
     {
       "source": "/((?!api/.*).*)",
       "destination": "/index.html"
