@@ -16,7 +16,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+
+// Body parsing: try express.json() first. In Vercel serverless,
+// req.body may already be set (pre-parsed). If express.json() fails,
+// it falls through to the global error handler — but we handle that
+// with a custom Vercel-compatible parser in api/index.js.
+app.use(express.json({ limit: '1mb' }));
 
 // ─── Rotas de autenticação (públicas) ───────────────────
 // O frontend e a funcao Vercel usam /api/auth. Mantemos os aliases antigos.

@@ -1,37 +1,37 @@
 /**
  * api/index.js — Single entry point for all Vercel API routes.
  *
- * Uses serverless-http to wrap the Express app, ensuring correct
- * body parsing in Vercel's serverless environment.
- *
- * Reuses the Express app from server/index.js which already has
- * all /api/auth and /api/jira/* routes defined. This reduces the
- * serverless function count from 15 to 2 (this file + sync/worker).
- *
- * Routes covered:
- *   /api/auth               (POST GET DELETE)
- *   /api/jira/config        (GET POST)
- *   /api/jira/test-connection (POST)
- *   /api/jira/sync           (POST)
- *   /api/jira/sync/start     (POST)
- *   /api/jira/sync/status    (GET)
- *   /api/jira/dashboard      (GET)
- *   /api/jira/project-metadata (GET PATCH POST)
- *   /api/jira/issues         (GET)
- *   /api/jira/projects       (GET)
- *   /api/jira/analysts       (GET)
- *   /api/jira/statuses       (GET)
- *   /api/jira/metrics        (GET)
- *   /api/jira/board          (GET)
- *   /api/jira/cache/clear    (POST)
- *   /api/jira/cache/stats    (GET)
- *   /api/jira/system/status  (GET)
- *
- * NOT covered (handled separately):
- *   /api/jira/sync/worker    (CRON-only, kept as standalone function)
+ * Vercel's Node.js runtime pre-parses req.body for function handlers.
+ * We normalize body before Express processes it.
+ * 
+ * Routes covered: all /api/auth and /api/jira/* routes.
  */
-import serverless from 'serverless-http';
 import app from '../server/index.js';
 
-export const handler = serverless(app);
-export default handler;
+/**
+ * Normalize req.body: Vercel may set it as parsed object, string, or Buffer.
+ * Express's express.json() skips if req.body !== undefined, so we ensure
+ * it's a proper object before Express sees it.
+ */
+function normalizeBody(req) {
+  const ct = req.headers['content-type'] || '';
+  if (!ct.startsWith('application/json')) return;
+
+  if (Buffer.isBuffer(req.body)) {
+    const raw = req.body.toString('utf8');
+    req.body = raw ? safeParse(raw) : undefined;
+  } else if (typeof req.body === 'string') {
+    req.body = req.body ? safeParse(req.body) : undefined;
+  }
+  // If object (pre-parsed by Vercel), leave as-is
+}
+
+function safeParse(str) {
+  try { return JSON.parse(str); }
+  catch { return str; }
+}
+
+export default async function handler(req, res) {
+  normalizeBody(req);
+  app(req, res);
+}
