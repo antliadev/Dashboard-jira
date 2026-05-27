@@ -4,35 +4,30 @@
 import app from '../server/index.js';
 
 export default function handler(req, res) {
-  // Debug without touching body at all
+  // For any /api/debug request, just echo back raw body info
   if (req.url === '/api/debug') {
-    res.status(200).json({
-      method: req.method,
-      ct: req.headers['content-type'],
-      bodyType: typeof req.body,
-      isBuffer: Buffer.isBuffer(req.body),
-      isString: typeof req.body === 'string',
-      isObj: typeof req.body === 'object' && !Buffer.isBuffer(req.body),
-      val: (() => {
-        try { return JSON.stringify(req.body).slice(0, 500); }
-        catch { return String(req.body).slice(0, 500); }
-      })(),
-    });
+    const bodyStr = Buffer.isBuffer(req.body)
+      ? req.body.toString('utf8')
+      : typeof req.body === 'string'
+        ? req.body
+        : typeof req.body === 'object' && req.body !== null
+          ? JSON.stringify(req.body)
+          : String(req.body);
+    
+    const lines = [
+      `METHOD=${req.method}`,
+      `URL=${req.url}`,
+      `CT=${req.headers['content-type'] || ''}`,
+      `CL=${req.headers['content-length'] || ''}`,
+      `BODY_TYPE=${typeof req.body}`,
+      `BODY_IS_BUFFER=${Buffer.isBuffer(req.body)}`,
+      `BODY_LEN=${bodyStr.length}`,
+      `BODY=${bodyStr.slice(0, 500)}`,
+    ];
+    
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(lines.join('\n'));
     return;
-  }
-
-  // Normalize body for non-GET JSON requests
-  if (req.method !== 'GET' && req.method !== 'DELETE') {
-    const ct = req.headers['content-type'] || '';
-    if (ct.startsWith('application/json')) {
-      if (Buffer.isBuffer(req.body)) {
-        try { req.body = JSON.parse(req.body.toString('utf8')); } catch { req.body = {}; }
-      } else if (typeof req.body === 'string') {
-        try { req.body = JSON.parse(req.body); } catch { req.body = {}; }
-      } else if (!req.body || typeof req.body !== 'object') {
-        req.body = {};
-      }
-    }
   }
 
   app(req, res);
