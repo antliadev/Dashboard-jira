@@ -14,6 +14,7 @@ import { configService } from '../../lib/configService.js';
 import { checkSupabaseConfig, supabase, supabaseKeyIsPrivileged, supabaseKeySource, supabaseKeyType } from '../../lib/supabaseServer.js';
 import {
   testJiraConnection,
+  validateJiraPreflight,
   fetchIssuesFromDatabase,
   fetchIssuesPageFromDatabase,
   fetchDashboardDataFromDatabase,
@@ -148,6 +149,44 @@ router.post('/test-connection', async (req, res) => {
   }
 });
 
+router.post('/sync/preflight', async (req, res) => {
+  try {
+    let { baseUrl, email, token, jql } = req.body || {};
+
+    if (!baseUrl || !email || !token) {
+      const conn = await configService.getActiveConnection();
+      if (conn) {
+        baseUrl = baseUrl || conn.baseUrl;
+        email = email || conn.email;
+        token = token || conn.token;
+        jql = jql || conn.jql;
+      }
+    }
+
+    baseUrl = baseUrl || process.env.JIRA_BASE_URL;
+    email = email || process.env.JIRA_EMAIL;
+    token = token || process.env.JIRA_API_TOKEN;
+    jql = jql || process.env.JIRA_JQL || 'project is not EMPTY ORDER BY updated DESC';
+
+    const result = await validateJiraPreflight(baseUrl, email, token, jql);
+
+    return res.json({
+      success: true,
+      user: result.user,
+      projectTotal: result.projectTotal,
+      totalTickets: result.totalTickets
+    });
+  } catch (error) {
+    console.error('[sync/preflight] Erro:', error.message);
+    const status = error.code === 'JIRA_AUTH_INVALID' ? 401 : 400;
+    return res.status(status).json({
+      success: false,
+      code: error.code || 'JIRA_PREFLIGHT_FAILED',
+      error: error.message
+    });
+  }
+});
+
 // ─────────────────────────────────────────────
 // GET /api/jira/sync/status — Status da sincronização
 // ─────────────────────────────────────────────
@@ -215,6 +254,13 @@ router.post('/sync', async (req, res) => {
         job: error.job
       });
     }
+    if (error.code === 'JIRA_AUTH_INVALID') {
+      return res.status(401).json({
+        success: false,
+        error: error.message,
+        code: error.code
+      });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -253,6 +299,13 @@ router.post('/sync/start', async (req, res) => {
         error: error.message,
         code: 'SYNC_ALREADY_RUNNING',
         job: error.job
+      });
+    }
+    if (error.code === 'JIRA_AUTH_INVALID') {
+      return res.status(401).json({
+        success: false,
+        error: error.message,
+        code: error.code
       });
     }
     res.status(500).json({ success: false, error: error.message });
