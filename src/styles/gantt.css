@@ -199,7 +199,7 @@
 .gantt-summary-icon.done { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .gantt-summary-icon.in-progress { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
 .gantt-summary-icon.missing { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-.gantt-summary-icon.fallback { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.gantt-summary-icon.due-only { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
 .gantt-summary-icon.no-date { background: rgba(100, 116, 139, 0.15); color: #64748b; }
 
 .gantt-summary-info {
@@ -779,11 +779,6 @@
   border-left: 3px solid #8b5cf6;
 }
 
-.gantt-hierarchy-row.deliverable {
-  background: rgba(59, 130, 246, 0.045);
-  border-left: 3px solid rgba(59, 130, 246, .72);
-}
-
 .gantt-hierarchy-main {
   min-width: 0;
 }
@@ -841,6 +836,10 @@
   font-size: 13px;
   color: var(--text-primary);
   height: 100%;
+}
+
+.gantt-row-cell.due-only {
+  color: #f59e0b;
 }
 
 .gantt-row-key {
@@ -1202,15 +1201,15 @@
   color: white;
 }
 
-/* Barra: Fallback de data (uso de createdAt como início) */
-.gantt-bar.fallback {
+/* Barra: somente data de previsao */
+.gantt-bar.due-only {
   background: linear-gradient(135deg, var(--gantt-bar-fallback), #d97706);
   color: white;
   border: 2px dashed rgba(255, 255, 255, 0.5);
   box-sizing: border-box;
 }
 
-.gantt-bar.fallback::before {
+.gantt-bar.due-only::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1268,10 +1267,6 @@
   background: rgba(139, 92, 246, 0.035);
 }
 
-.gantt-timeline-row.hierarchy-deliverable {
-  background: rgba(59, 130, 246, 0.025);
-}
-
 .gantt-aggregate-bar {
   position: absolute;
   height: calc(var(--gantt-row-height) * 0.36);
@@ -1290,11 +1285,6 @@
   height: calc(var(--gantt-row-height) * 0.46);
   border-color: rgba(139, 92, 246, .48);
   background: rgba(139, 92, 246, .18);
-}
-
-.gantt-aggregate-bar.deliverable {
-  border-color: rgba(59, 130, 246, .38);
-  background: rgba(59, 130, 246, .14);
 }
 
 .gantt-aggregate-bar.warning {
@@ -2018,7 +2008,7 @@
   color: #f59e0b;
 }
 
-.gantt-no-date-item-issue.fallback-start {
+.gantt-no-date-item-issue.due-only {
   background: rgba(139, 92, 246, 0.15);
   color: #8b5cf6;
 }
@@ -2074,7 +2064,7 @@
 .gantt-legend-color.overdue { background: var(--gantt-bar-overdue); }
 .gantt-legend-color.future { background: var(--gantt-bar-future); }
 .gantt-legend-color.todo { background: var(--gantt-bar-todo); }
-.gantt-legend-color.fallback { background: var(--gantt-bar-fallback); border: 1px dashed rgba(255,255,255,0.5); }
+.gantt-legend-color.due-only { background: var(--gantt-bar-fallback); border: 1px dashed rgba(255,255,255,0.5); }
 
 /* ═══════════════════════════════════════════════════════════
    ESTADO VAZIO

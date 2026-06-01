@@ -607,6 +607,7 @@ class DataService {
       const dueDate     = i.due_date;
       const plannedStartDate = i.planned_start_date || i.start_date || i.plannedStartDate || i.startDate || null;
       const plannedEndDate = i.planned_end_date || i.plannedEndDate || dueDate || null;
+      const storyPoints = Number(i.story_points || i.storyPoints || 0) || 0;
       const parentKey   = i.parent_key || null;
       const parentTitle = i.parent_title || null;
       const issueId     = i.issue_id;
@@ -636,11 +637,11 @@ class DataService {
         startDate: plannedStartDate,
         plannedStartDate,
         plannedEndDate,
-        dateSource: plannedStartDate ? 'jira' : 'created_at_fallback',
+        dateSource: plannedStartDate ? 'jira' : (plannedEndDate ? 'due_date_only' : 'missing'),
         jiraUrl: i.jira_url || i.jiraUrl || i.issue_url || i.self || null,
         rawFields: i.raw_fields || i.rawFields || null,
         sprint: null,
-        storyPoints: 0,
+        storyPoints,
         labels: i.labels || [],
         components: i.components || [],
         fixVersions: i.fix_versions || i.fixVersions || [],
@@ -676,7 +677,7 @@ class DataService {
     if (name.includes('story')) return 'story';
     if (name.includes('bug') || name.includes('defect')) return 'bug';
     if (name.includes('epic')) return 'epic';
-    if (name.includes('subtask')) return 'subtask';
+    if (name.includes('subtask') || name.includes('sub-task') || name.includes('subtarefa')) return 'subtask';
     return 'task';
   }
 
@@ -972,7 +973,7 @@ class DataService {
       ready4Test: 0,
       validation: 0,
       cancelled: 0,
-      fallback: projectCards.filter(card => card.dateSource === 'created_at_fallback').length,
+      datePartial: projectCards.filter(card => card.dateSource === 'due_date_only').length,
     };
 
     // Contagem por status

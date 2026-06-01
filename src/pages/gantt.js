@@ -25,7 +25,6 @@ import {
 } from '../data/models.js';
 import { sanitize, debounce, formatDate, priorityLabel } from '../utils/helpers.js';
 import {
-  buildDeliverables,
   buildProjectScheduleSummary,
   toDate as toScheduleDate,
 } from '../data/schedule-service.js';
@@ -235,13 +234,12 @@ function isWeekend(date) {
 
 function getCardTimeline(card) {
   const officialStart = toDate(card.plannedStartDate || card.startDate);
-  const fallbackStart = toDate(card.createdAt);
   const end = toDate(card.plannedEndDate || card.dueDate);
 
   if (!end) {
     return {
       card,
-      start: officialStart || fallbackStart,
+      start: officialStart,
       end: null,
       canRender: false,
       startSource: officialStart ? 'jira' : 'missing',
@@ -249,7 +247,7 @@ function getCardTimeline(card) {
     };
   }
 
-  const start = officialStart || fallbackStart;
+  const start = officialStart || end;
   if (!start) {
     return {
       card,
@@ -267,8 +265,8 @@ function getCardTimeline(card) {
     start: start > end ? end : start,
     end,
     canRender: true,
-    startSource: officialStart ? 'jira' : 'created_at_fallback',
-    issue: officialStart ? null : 'fallback_start',
+    startSource: officialStart ? 'jira' : 'due_date_only',
+    issue: officialStart ? null : 'missing_start',
     isOverdue,
   };
 }
@@ -719,11 +717,11 @@ function openModal(cardId) {
     ? '<span class="gantt-modal-grid-value danger">Atrasado</span>'
     : '<span class="gantt-modal-grid-value success">No prazo</span>';
 
-  const fallbackWarning = timeline.startSource === 'created_at_fallback'
+  const dateWarning = timeline.startSource === 'due_date_only'
     ? `
       <div class="gantt-modal-warning">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span class="gantt-modal-warning-text">Data de início usa fallback da criação do Jira por falta de data planejada.</span>
+        <span class="gantt-modal-warning-text">Ticket sem data de início no Jira; barra exibida como marco na data de entrega.</span>
       </div>`
     : '';
 
@@ -746,7 +744,7 @@ function openModal(cardId) {
         <button class="gantt-modal-close" aria-label="Fechar" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;">&times;</button>
       </div>
       <div class="gantt-modal-body">
-        ${fallbackWarning}
+        ${dateWarning}
         <div class="gantt-modal-grid">
           <div class="gantt-modal-grid-item">
             <span class="gantt-modal-grid-label">Projeto</span>
@@ -793,10 +791,10 @@ function openModal(cardId) {
             <span class="gantt-modal-grid-label">Tipo</span>
             <span class="gantt-modal-grid-value">${sanitize(card.type)}</span>
           </div>` : ''}
-          ${timeline.startSource === 'created_at_fallback' ? `
+          ${timeline.startSource === 'due_date_only' ? `
           <div class="gantt-modal-grid-item full">
             <span class="gantt-modal-grid-label warning">Fonte da data</span>
-            <span class="gantt-modal-grid-value">Data de criação do Jira usada como início (fallback).</span>
+            <span class="gantt-modal-grid-value">Sem início no Jira; início visual igual à previsão para não inventar data.</span>
           </div>` : ''}
         </div>
       </div>
@@ -886,7 +884,7 @@ function openSettingsPanel() {
             <div class="gantt-settings-option-label">Agrupar por</div>
           </div>
           <select class="gantt-settings-select" data-pref="grouping">
-            <option value="hierarchy" ${state.prefs.grouping === 'hierarchy' ? 'selected' : ''}>Projeto > Entregável > Ticket</option>
+            <option value="hierarchy" ${state.prefs.grouping === 'hierarchy' ? 'selected' : ''}>Projeto > Tickets reais</option>
             <option value="none" ${state.prefs.grouping === 'none' ? 'selected' : ''}>Sem agrupamento</option>
             <option value="project" ${state.prefs.grouping === 'project' ? 'selected' : ''}>Projeto</option>
             <option value="assignee" ${state.prefs.grouping === 'assignee' ? 'selected' : ''}>Responsável</option>
@@ -970,7 +968,7 @@ function renderSummary(filtered, allItems) {
   const overdue = allItems.filter(item => item.isOverdue);
   const renderable = allItems.filter(item => item.canRender);
   const noDate = allItems.filter(item => !item.canRender || item.issue);
-  const fallback = allItems.filter(item => item.startSource === 'created_at_fallback');
+  const dueOnly = allItems.filter(item => item.startSource === 'due_date_only');
   const done = allItems.filter(item => {
     const cat = resolveStatusCategory(item.card.status || '');
     return cat === StatusCategory.DONE;
@@ -1033,16 +1031,16 @@ function renderSummary(filtered, allItems) {
         </div>
         <div class="gantt-summary-info">
           <span class="gantt-summary-value" style="color:${noDate.length ? '#f59e0b' : 'inherit'}">${noDate.length}</span>
-          <span class="gantt-summary-label">Sem data</span>
+          <span class="gantt-summary-label">Data parcial</span>
         </div>
       </div>
-      <div class="gantt-summary-card" title="Tickets com fallback de data de criação">
-        <div class="gantt-summary-icon fallback">
+      <div class="gantt-summary-card" title="Tickets sem início no Jira, exibidos como marco na previsão">
+        <div class="gantt-summary-icon due-only">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </div>
         <div class="gantt-summary-info">
-          <span class="gantt-summary-value" style="color:${fallback.length ? '#a855f7' : 'inherit'}">${fallback.length}</span>
-          <span class="gantt-summary-label">Fallback</span>
+          <span class="gantt-summary-value" style="color:${dueOnly.length ? '#a855f7' : 'inherit'}">${dueOnly.length}</span>
+          <span class="gantt-summary-label">Só previsão</span>
         </div>
       </div>
     </div>
@@ -1063,7 +1061,7 @@ function renderLegend() {
         <span class="gantt-legend-item"><span class="gantt-legend-color overdue"></span>Atrasado</span>
         <span class="gantt-legend-item"><span class="gantt-legend-color future"></span>Futuro</span>
         <span class="gantt-legend-item"><span class="gantt-legend-color todo"></span>A fazer</span>
-        <span class="gantt-legend-item"><span class="gantt-legend-color fallback"></span>Fallback</span>
+        <span class="gantt-legend-item"><span class="gantt-legend-color due-only"></span>Só previsão</span>
       </div>
     </div>
   `;
@@ -1079,7 +1077,7 @@ function renderNoDateSection(items, collapsed) {
 
   const missingStart = noDateItems.filter(i => i.issue === 'missing_start' || (i.issue === 'missing_end' && !i.start));
   const missingEnd = noDateItems.filter(i => i.issue === 'missing_end');
-  const fallbackStart = noDateItems.filter(i => i.issue === 'fallback_start');
+  const dueOnly = noDateItems.filter(i => i.startSource === 'due_date_only');
 
   // Agrupar por projeto para identificar problemas
   const projectMap = {};
@@ -1118,8 +1116,8 @@ function renderNoDateSection(items, collapsed) {
             <div class="gantt-no-date-stat-label">Sem previsão de fim</div>
           </div>
           <div class="gantt-no-date-stat">
-            <div class="gantt-no-date-stat-value" style="color:#8b5cf6">${fallbackStart.length}</div>
-            <div class="gantt-no-date-stat-label">Fallback (criação)</div>
+            <div class="gantt-no-date-stat-value" style="color:#8b5cf6">${dueOnly.length}</div>
+            <div class="gantt-no-date-stat-label">Só previsão</div>
           </div>
           <div class="gantt-no-date-stat">
             <div class="gantt-no-date-stat-value">${topProjects.length}</div>
@@ -1138,8 +1136,8 @@ function renderNoDateSection(items, collapsed) {
         </div>` : ''}
         <div class="gantt-no-date-list">
           ${noDateItems.slice(0, 50).map(item => {
-            const issueLabel = item.issue === 'missing_start' ? 'Sem início' : item.issue === 'missing_end' ? 'Sem fim' : 'Fallback';
-            const issueClass = item.issue === 'missing_start' ? 'missing-start' : item.issue === 'missing_end' ? 'missing-end' : 'fallback-start';
+            const issueLabel = item.issue === 'missing_start' ? 'Sem início' : item.issue === 'missing_end' ? 'Sem fim' : 'Só previsão';
+            const issueClass = item.issue === 'missing_start' ? 'missing-start' : item.issue === 'missing_end' ? 'missing-end' : 'due-only';
             return `
               <div class="gantt-no-date-item" data-card-id="${sanitize(item.card.id)}">
                 <span class="gantt-no-date-item-key">${sanitize(item.card.key)}</span>
@@ -1229,8 +1227,8 @@ function renderBar(item, range) {
   const width = getPixelWidth(item.start, item.end, range, totalDays, totalPixels);
 
   const cls = getStatusClass(item);
-  const isFallback = item.startSource === 'created_at_fallback';
-  const barClass = `gantt-bar ${cls}${isFallback ? ' fallback' : ''}`;
+  const isDueOnly = item.startSource === 'due_date_only';
+  const barClass = `gantt-bar ${cls}${isDueOnly ? ' due-only' : ''}`;
 
   return `
     <div class="${barClass}" style="left:${left}px;width:${Math.max(30, width)}px;" data-card-id="${sanitize(item.card.id)}" title="${sanitize(item.card.key)} — ${sanitize(item.card.title)}">
@@ -1280,7 +1278,7 @@ function renderLeftRow(item) {
         break;
       case 'startDate':
         content = timeline.start ? formatDate(timeline.start) : '—';
-        if (timeline.startSource === 'created_at_fallback') cls = 'fallback';
+        if (timeline.startSource === 'due_date_only') cls = 'due-only';
         break;
       case 'endDate':
         content = timeline.end ? formatDate(timeline.end) : '—';
@@ -1342,50 +1340,40 @@ function buildHierarchyRows(items) {
     const rollup = getRowStartEndFromItems(projectItems);
     const projectStart = toScheduleDate(schedule.plannedStartDate) || toScheduleDate(schedule.effectiveStartDate) || rollup.start;
     const projectEnd = toScheduleDate(schedule.plannedEndDate) || toScheduleDate(schedule.effectiveEndDate) || rollup.end;
-    const deliverables = buildDeliverables(projectCards);
+    const sortedTickets = [...projectItems].sort((a, b) => {
+      const aParent = a.card.parentKey || '';
+      const bParent = b.card.parentKey || '';
+      if (a.card.type === 'epic' && b.card.parentKey === a.card.key) return -1;
+      if (b.card.type === 'epic' && a.card.parentKey === b.card.key) return 1;
+      if (aParent !== bParent) return aParent.localeCompare(bParent);
+      if (a.start && b.start) return a.start - b.start;
+      if (a.start) return -1;
+      if (b.start) return 1;
+      return a.card.key.localeCompare(b.card.key);
+    });
     const projectRow = {
       id: `project:${projectId}`,
       type: 'project',
       level: 0,
       title: `${project.key || projectId} — ${project.name || ''}`,
-      subtitle: `${projectItems.length} tickets · ${deliverables.length} entregáveis`,
+      subtitle: `${projectItems.length} tickets reais`,
       start: projectStart,
       end: projectEnd,
       progress: schedule.completionPercentage || 0,
       risk: schedule.healthStatus || 'ok',
       bufferDays: schedule.bufferDays,
-      childCount: deliverables.length,
+      childCount: projectItems.length,
     };
     rows.push(projectRow);
 
-    for (const deliverable of deliverables) {
-      const deliverableItems = deliverable.tickets
-        .map(card => projectItems.find(item => item.card.id === card.id))
-        .filter(Boolean);
-      const dRollup = getRowStartEndFromItems(deliverableItems);
-      const deliverableRow = {
-        id: `deliverable:${projectId}:${deliverable.id}`,
+    for (const item of sortedTickets) {
+      rows.push({
+        ...item,
+        id: `ticket:${item.card.id}`,
         parentId: projectRow.id,
-        type: 'deliverable',
+        type: 'ticket',
         level: 1,
-        title: deliverable.name,
-        subtitle: `${deliverableItems.length} tickets`,
-        start: toScheduleDate(deliverable.plannedStartDate) || dRollup.start,
-        end: toScheduleDate(deliverable.plannedEndDate) || dRollup.end,
-        progress: deliverable.completionPercentage || 0,
-        risk: deliverable.riskStatus,
-        childCount: deliverableItems.length,
-      };
-      rows.push(deliverableRow);
-      for (const item of deliverableItems) {
-        rows.push({
-          ...item,
-          id: `ticket:${item.card.id}`,
-          parentId: deliverableRow.id,
-          type: 'ticket',
-          level: 2,
-        });
-      }
+      });
     }
   }
 
@@ -1426,7 +1414,7 @@ function renderHierarchyLeftPanel(rows) {
   return `
     <div class="gantt-left-panel">
       <div class="gantt-left-header-grid gantt-hierarchy-header">
-        <div class="gantt-col-header" style="width:${state.prefs.leftColWidth}px"><span>Projeto / Entregável / Ticket</span></div>
+        <div class="gantt-col-header" style="width:${state.prefs.leftColWidth}px"><span>Projeto / Tickets reais</span></div>
       </div>
       <div class="gantt-left-body">
         ${rows.map(row => renderHierarchyLeftRow(row)).join('') || '<div class="gantt-empty-state" style="padding: 40px 20px;"><h3>Nenhum ticket</h3><p>Tente ajustar os filtros.</p></div>'}
@@ -1443,12 +1431,12 @@ function renderAggregateBar(row, range) {
   const width = getPixelWidth(row.start, row.end, range, totalDays, totalPixels);
   const riskClass = row.risk === 'risk' || row.risk === 'high' ? 'danger' : row.risk === 'attention' || row.risk === 'medium' ? 'warning' : 'success';
   const bufferLabel = row.type === 'project' && row.bufferDays !== null && row.bufferDays !== undefined
-    ? ` · gordura ${row.bufferDays > 0 ? '+' : ''}${row.bufferDays}d`
+    ? ` · margem ${row.bufferDays > 0 ? '+' : ''}${row.bufferDays}d`
     : '';
   return `
     <div class="gantt-aggregate-bar ${row.type} ${riskClass}" style="left:${left}px;width:${Math.max(48, width)}px;" title="${sanitize(row.title)}${sanitize(bufferLabel)}">
       <span class="gantt-aggregate-progress" style="width:${Math.max(0, Math.min(100, row.progress || 0))}%"></span>
-      <span class="gantt-aggregate-text">${sanitize(row.type === 'project' ? 'Projeto' : 'Entregável')} · ${Math.round(row.progress || 0)}%</span>
+      <span class="gantt-aggregate-text">Projeto · ${Math.round(row.progress || 0)}%</span>
     </div>
   `;
 }
@@ -1660,7 +1648,7 @@ function renderHierarchyTimelinePanel(rows, range, ticks, viewMode) {
   }).join('');
   const todayPixelPos = getPixelPosition(today, range, totalDays, totalPixels);
   const bodyHtml = rows.map(row => `
-    <div class="gantt-timeline-row ${row.type === 'project' || row.type === 'deliverable' ? `hierarchy-${row.type}` : ''}">
+    <div class="gantt-timeline-row ${row.type === 'project' ? 'hierarchy-project' : ''}">
       ${row.type === 'ticket' ? renderBar(row, range) : renderAggregateBar(row, range)}
     </div>
   `).join('');

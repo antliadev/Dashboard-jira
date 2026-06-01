@@ -55,7 +55,7 @@ export function isBlocked(card) {
 }
 
 export function getCardStartDate(card) {
-  return toISODate(card?.plannedStartDate || card?.startDate || card?.createdAt);
+  return toISODate(card?.plannedStartDate || card?.startDate);
 }
 
 export function getCardEndDate(card) {
@@ -72,12 +72,7 @@ export function getProjectEffectiveStartDate(cards) {
     return { date: toISODate(planned[0]), source: 'planned_start' };
   }
 
-  const created = cards
-    .map(card => toDate(card.createdAt))
-    .filter(Boolean)
-    .sort((a, b) => a - b);
-
-  return { date: created.length ? toISODate(created[0]) : null, source: created.length ? 'created_at' : 'missing' };
+  return { date: null, source: 'missing' };
 }
 
 export function getProjectEffectiveEndDate(cards) {

@@ -168,7 +168,7 @@ function renderExecutiveDashboard(summary, formatTicket) {
         <div class="exec-kpi-card success"><small>Concluídos</small><strong>${totals.done}</strong><p>${progressPercent}% do total</p></div>
         <div class="exec-kpi-card progress"><small>Em andamento</small><strong>${totals.inProgress}</strong><p>${totals.issues ? Math.round((totals.inProgress / totals.issues) * 100) : 0}% do total</p></div>
         <div class="exec-kpi-card danger"><small>Bloqueados</small><strong>${totals.blocked}</strong><p>${totals.issues ? Math.round((totals.blocked / totals.issues) * 100) : 0}% do total</p></div>
-        <div class="exec-kpi-card warning"><small>Fallback</small><strong>${totals.fallback || 0}</strong><p>Data por criação Jira</p></div>
+        <div class="exec-kpi-card warning"><small>Data parcial</small><strong>${totals.datePartial || 0}</strong><p>Sem início no Jira</p></div>
       </div>
 
       <div class="exec-main-grid">
