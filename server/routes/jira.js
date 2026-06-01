@@ -184,11 +184,17 @@ router.post('/sync', async (req, res) => {
     const sessionId = req.headers['x-session-id'] || null;
     const { job, credentials, durable, credentialsPersisted } = await createSyncJob(req.body || {}, sessionId);
 
-    setImmediate(() => {
-      runSyncJob(job.id, credentials).catch(error => {
+    // Processa o job em background após enviar a resposta.
+    // No Vercel usa waitUntil (extende lifetime da função).
+    // Localmente usa setImmediate (Node.js padrão).
+    const bgTask = () => runSyncJob(job.id, credentials);
+    if (typeof req.waitUntil === 'function') {
+      req.waitUntil(bgTask().catch(err => console.error('[sync] Erro em background:', err.message)));
+    } else if (process.env.VERCEL !== '1') {
+      setImmediate(() => bgTask().catch(error => {
         console.error('[sync] Erro em background:', error.message);
-      });
-    });
+      }));
+    }
 
     return res.status(202).json({
       success: true,
@@ -213,11 +219,15 @@ router.post('/sync/start', async (req, res) => {
     const sessionId = req.headers['x-session-id'] || null;
     const { job, credentials, durable, credentialsPersisted } = await createSyncJobFromEnv(sessionId);
 
-    setImmediate(() => {
-      runSyncJob(job.id, credentials).catch(error => {
+    // Processa o job em background após enviar a resposta.
+    const bgTask = () => runSyncJob(job.id, credentials);
+    if (typeof req.waitUntil === 'function') {
+      req.waitUntil(bgTask().catch(err => console.error('[sync/start] Erro em background:', err.message)));
+    } else if (process.env.VERCEL !== '1') {
+      setImmediate(() => bgTask().catch(error => {
         console.error('[sync/start] Erro em background:', error.message);
-      });
-    });
+      }));
+    }
 
     return res.status(202).json({
       success: true,

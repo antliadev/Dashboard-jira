@@ -20,7 +20,8 @@ export default function handler(req, res) {
       } else if (typeof req.body !== 'object' || req.body === null) {
         req.body = {};
       }
-      // Express's express.json() skips if req.body !== undefined
+      // Express's body-parser checks req._body — tell it to skip
+      req._body = true;
     }
   }
 

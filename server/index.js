@@ -17,9 +17,11 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 
-// Body parsing is handled by api/index.js in Vercel (manual read).
-// In dev mode, express.json() handles it via the local server.
+// Body parsing: in dev mode (local server), use express.json().
+// In Vercel, api/index.js pre-parses req.body before Express processes it.
+// express.json() skips if req.body is already set.
 app.use(express.json({ limit: '1mb' }));
+
 
 // ─── Rotas de autenticação (públicas) ───────────────────
 // O frontend e a funcao Vercel usam /api/auth. Mantemos os aliases antigos.
