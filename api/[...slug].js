@@ -6,8 +6,11 @@
  * already consumed. We normalize req.body before calling Express.
  */
 import app from '../server/index.js';
+import { waitUntil } from '@vercel/functions';
 
 export default function handler(req, res) {
+  req.waitUntil = waitUntil;
+
   // For non-GET JSON requests, ensure req.body is a proper object
   // BEFORE Express's express.json() middleware runs.
   if (req.method !== 'GET' && req.method !== 'DELETE') {

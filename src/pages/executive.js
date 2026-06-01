@@ -1,6 +1,6 @@
 /**
  * executive.js — Resumo Executivo do Projeto
- * Layout: 2 colunas (esquerda: Status + KPIs + Conquistas + Próximos Passos | direita: Progresso + Time + Riscos)
+ * Layout: 2 colunas (esquerda: Status + KPIs + Conquistas + Proximos Passos | direita: Progresso + Time + acompanhamento)
  */
 import '../styles/executive.css';
 import { dataService } from '../data/data-service.js';
@@ -134,7 +134,6 @@ function renderExecutiveDashboard(summary, formatTicket) {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   }) : '—';
   const farolClass = farol?.cor || 'green';
-  const farolText = farolClass === 'red' ? 'Risco' : farolClass === 'yellow' ? 'Atenção' : 'Saudável';
   const topAlert = schedule.alerts?.[0]?.label || 'Cronograma dentro dos critérios atuais.';
 
   return `
@@ -163,7 +162,7 @@ function renderExecutiveDashboard(summary, formatTicket) {
       <div class="exec-kpi-row">
         <div class="exec-kpi-card farol ${farolClass}">
           <div class="exec-farol-ring"><span></span></div>
-          <div><small>Farol do projeto</small><strong>${sanitize(farolText)}</strong><p>${sanitize(topAlert)}</p></div>
+          <div><small>Farol do projeto</small><strong>${progressPercent}%</strong><p>${sanitize(topAlert)}</p></div>
         </div>
         <div class="exec-kpi-card"><small>Total de tickets</small><strong>${totals.issues}</strong><p>100% do total</p></div>
         <div class="exec-kpi-card success"><small>Concluídos</small><strong>${totals.done}</strong><p>${progressPercent}% do total</p></div>
@@ -179,7 +178,7 @@ function renderExecutiveDashboard(summary, formatTicket) {
               <div class="exec-card-title">Cronograma do Projeto</div>
               <p>Proposta, execução Jira e margem de segurança em uma visão única.</p>
             </div>
-            <span class="exec-schedule-health ${farolClass}">${sanitize(farolText)}</span>
+            <span class="exec-schedule-health ${farolClass}" aria-label="Indicador visual do cronograma"></span>
           </div>
           <div class="exec-schedule-layout">
             <form class="exec-schedule-list" id="exec-schedule-form">
@@ -231,7 +230,7 @@ function renderExecutiveDashboard(summary, formatTicket) {
                 <span>${formatDate(item.plannedStartDate)} - ${formatDate(item.plannedEndDate)}</span>
                 <div class="exec-mini-track"><i style="width:${item.completionPercentage}%"></i></div>
                 <em>${item.completionPercentage}%</em>
-                <b class="${item.riskStatus}">${riskLabel(item.riskStatus)}</b>
+                <b class="${item.riskStatus}" aria-label="Indicador visual do entregavel"></b>
               </div>
             `).join('') || '<div class="executive-list-empty">Nenhum entregável identificado</div>'}
           </div>
@@ -253,9 +252,9 @@ function renderExecutiveDashboard(summary, formatTicket) {
       </div>
 
       <section class="exec-card exec-risk-card">
-        <div class="exec-card-title">Riscos Identificados</div>
+        <div class="exec-card-title">Pontos de Acompanhamento</div>
         <div class="exec-risk-row">
-          ${risks.length ? risks.slice(0, 4).map(r => `<div class="exec-risk-item ${r.level === 'Alto' ? 'high' : 'medium'}"><strong>${sanitize(r.key)} — ${sanitize(r.title)}</strong><span>${sanitize(r.reason)} · Resp: ${sanitize(r.assignee)}</span><b>${sanitize(r.level)}</b></div>`).join('') : '<div class="executive-list-empty">Nenhum risco crítico identificado</div>'}
+          ${risks.length ? risks.slice(0, 4).map(r => `<div class="exec-risk-item ${r.level === 'Alto' ? 'high' : 'medium'}"><strong>${sanitize(r.key)} — ${sanitize(r.title)}</strong><span>${sanitize(r.reason)} · Resp: ${sanitize(r.assignee)}</span><b aria-label="Indicador visual do item"></b></div>`).join('') : '<div class="executive-list-empty">Nenhum item de acompanhamento pendente</div>'}
         </div>
       </section>
       </div>
@@ -734,22 +733,22 @@ function renderExecutiveContent(projectKey) {
               </div>
             </div>
 
-            <!-- 7. RISCOS IDENTIFICADOS -->
+            <!-- 7. PONTOS DE ACOMPANHAMENTO -->
             <div class="executive-card executive-risks-card">
               <div class="executive-card-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Riscos Identificados
+                Pontos de Acompanhamento
               </div>
               <div class="executive-risks-content">
                 ${risks.length > 0 ? risks.map(r => `
                   <div class="executive-risk-item risk-${r.level.toLowerCase()}">
-                    <span class="executive-risk-badge ${r.level.toLowerCase()}">${sanitize(r.level)}</span>
+                    <span class="executive-risk-badge ${r.level.toLowerCase()}" aria-label="Indicador visual do item"></span>
                     <div class="executive-risk-body">
                       <span class="executive-risk-title" title="${sanitizeTitle(r.title)}">${sanitize(r.key)} — ${sanitize(r.title)}</span>
                       <span class="executive-risk-meta">${sanitize(r.reason)} • Resp: ${sanitize(r.assignee)}</span>
                     </div>
                   </div>
-                `).join('') : '<div class="executive-list-empty success">Nenhum risco identificado</div>'}
+                `).join('') : '<div class="executive-list-empty success">Nenhum item de acompanhamento pendente</div>'}
               </div>
             </div>
           </div>

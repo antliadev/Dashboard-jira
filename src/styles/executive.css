@@ -1112,15 +1112,25 @@
 
 .exec-schedule-health {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 18px;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 0;
   color: #f59e0b;
   background: rgba(245, 158, 11, 0.12);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .04em;
+}
+
+.exec-schedule-health::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 14px currentColor;
 }
 
 .exec-schedule-health.green {
@@ -1513,8 +1523,13 @@
 }
 
 .exec-deliverable-row b {
-  font-size: 11px;
-  font-weight: 800;
+  justify-self: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  color: #f59e0b;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
 }
 
 .exec-deliverable-row b.low { color: #22c55e; }
@@ -1601,18 +1616,20 @@
 
 .exec-risk-item b {
   position: absolute;
-  right: 12px;
-  top: 12px;
-  font-size: 10px;
+  right: 16px;
+  top: 16px;
+  width: 12px;
+  height: 12px;
   color: #f59e0b;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(245, 158, 11, .16);
+  padding: 0;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
 }
 
 .exec-risk-item.high b {
   color: #ef4444;
-  background: rgba(239, 68, 68, .16);
+  background: currentColor;
 }
 
 @media (max-width: 1100px) {

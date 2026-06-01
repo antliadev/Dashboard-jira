@@ -11,6 +11,38 @@ import { sanitize } from '../utils/helpers.js';
 let syncStatus = null;
 let pollingInterval = null;
 
+const ACTIVE_SYNC_STATUSES = new Set(['queued', 'running']);
+const POLLING_INTERVAL_MS = 3000;
+const SYNC_TIMEOUT_MS = 20 * 60 * 1000;
+
+function stopPolling({ clearJob = false } = {}) {
+  if (pollingInterval) clearInterval(pollingInterval);
+  pollingInterval = null;
+  if (clearJob) sessionStorage.removeItem('activeSyncJobId');
+}
+
+function getJobAgeMs(status) {
+  const stamp = status?.startedAt || status?.createdAt || status?.updatedAt;
+  const started = stamp ? new Date(stamp).getTime() : 0;
+  return started ? Date.now() - started : 0;
+}
+
+function hasSyncTimedOut(status) {
+  return ACTIVE_SYNC_STATUSES.has(status?.status) && getJobAgeMs(status) > SYNC_TIMEOUT_MS;
+}
+
+function markSyncTimeout(status) {
+  return {
+    ...status,
+    status: 'error',
+    error: 'Tempo limite da sincronizacao atingido. O job pode ter sido interrompido no backend; tente novamente ou verifique os logs.',
+    logs: [
+      ...(Array.isArray(status?.logs) ? status.logs : []),
+      { at: new Date().toISOString(), message: 'Frontend encerrou o acompanhamento por timeout.' }
+    ].slice(-80)
+  };
+}
+
 export function renderData() {
   const header = document.getElementById('page-header');
   header.innerHTML = `
@@ -31,7 +63,10 @@ async function loadInitialStatus() {
   syncStatus = await dataService.getSyncStatus(savedJobId).catch(() => null);
   await dataService.ensureLoaded({ force: true }).then(() => renderSidebar()).catch(() => null);
 
-  if (syncStatus?.id && ['queued', 'running'].includes(syncStatus.status)) {
+  if (hasSyncTimedOut(syncStatus)) {
+    syncStatus = markSyncTimeout(syncStatus);
+    sessionStorage.removeItem('activeSyncJobId');
+  } else if (syncStatus?.id && ACTIVE_SYNC_STATUSES.has(syncStatus.status)) {
     sessionStorage.setItem('activeSyncJobId', syncStatus.id);
     startPolling(syncStatus.id);
   }
@@ -40,19 +75,21 @@ async function loadInitialStatus() {
 }
 
 function startPolling(jobId) {
-  if (pollingInterval) clearInterval(pollingInterval);
+  stopPolling();
 
   pollingInterval = setInterval(async () => {
     try {
       syncStatus = await dataService.getSyncStatus(jobId);
 
-      if (!syncStatus || !['queued', 'running'].includes(syncStatus.status)) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
+      if (hasSyncTimedOut(syncStatus)) {
+        syncStatus = markSyncTimeout(syncStatus);
+        stopPolling({ clearJob: true });
+      } else if (!syncStatus || !ACTIVE_SYNC_STATUSES.has(syncStatus.status)) {
+        stopPolling({ clearJob: syncStatus?.status === 'success' || syncStatus?.status === 'error' });
 
         if (syncStatus?.status === 'success') {
-          sessionStorage.removeItem('activeSyncJobId');
-          await dataService.loadJiraData();
+          await dataService.ensureLoaded({ force: true });
+          renderSidebar();
         }
       }
 
@@ -66,10 +103,9 @@ function startPolling(jobId) {
         logs: []
       };
       renderDataContent();
-      clearInterval(pollingInterval);
-      pollingInterval = null;
+      stopPolling({ clearJob: true });
     }
-  }, 3000);
+  }, POLLING_INTERVAL_MS);
 }
 
 function getStatusMessage() {
@@ -115,7 +151,7 @@ function getStatusMessage() {
 function renderDataContent() {
   const content = document.getElementById('page-content');
   const status = getStatusMessage();
-  const isProcessing = ['queued', 'running'].includes(syncStatus?.status);
+  const isProcessing = ACTIVE_SYNC_STATUSES.has(syncStatus?.status);
   const logs = Array.isArray(syncStatus?.logs) ? syncStatus.logs.slice(-6) : [];
   const metadata = dataService.getSyncMetadata();
   const lastSyncLabel = metadata.lastSyncedAt
@@ -179,6 +215,7 @@ function renderDataContent() {
 function setupEventListeners() {
   document.getElementById('btn-start-sync')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-start-sync');
+    if (!btn || btn.disabled || ACTIVE_SYNC_STATUSES.has(syncStatus?.status)) return;
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Iniciando...';
@@ -204,6 +241,7 @@ function setupEventListeners() {
         error: error.message,
         logs: []
       };
+      stopPolling({ clearJob: true });
       renderDataContent();
     }
   });

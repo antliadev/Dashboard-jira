@@ -207,6 +207,14 @@ router.post('/sync', async (req, res) => {
 
   } catch (error) {
     console.error('[sync] Erro:', error.message);
+    if (error.code === 'SYNC_ALREADY_RUNNING') {
+      return res.status(409).json({
+        success: false,
+        error: error.message,
+        code: 'SYNC_ALREADY_RUNNING',
+        job: error.job
+      });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });

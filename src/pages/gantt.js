@@ -1369,7 +1369,7 @@ function buildHierarchyRows(items) {
         type: 'deliverable',
         level: 1,
         title: deliverable.name,
-        subtitle: `${deliverableItems.length} tickets · risco ${deliverable.riskStatus}`,
+        subtitle: `${deliverableItems.length} tickets`,
         start: toScheduleDate(deliverable.plannedStartDate) || dRollup.start,
         end: toScheduleDate(deliverable.plannedEndDate) || dRollup.end,
         progress: deliverable.completionPercentage || 0,

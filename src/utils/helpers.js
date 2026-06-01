@@ -39,7 +39,7 @@ export function typeLabel(t) {
 }
 
 export function healthLabel(h) {
-  const map = { healthy: 'Saudável', at_risk: 'Em Risco', critical: 'Crítico' };
+  const map = { healthy: 'Saudável', at_risk: 'Atenção', critical: 'Crítico' };
   return map[h] || h;
 }
 

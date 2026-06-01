@@ -249,11 +249,11 @@ class DataService {
         credentials.baseUrl = baseUrl;
       }
 
-      const response = await fetch(`${this._apiBase}/sync`, {
+      const response = await this._fetchWithTimeout(`${this._apiBase}/sync`, {
         method: 'POST',
         headers: this._getHeaders(),
         body: JSON.stringify(credentials)
-      });
+      }, 15000);
       
       // Validar content-type antes de parsear JSON
       const contentType = response.headers.get('content-type');
@@ -266,6 +266,13 @@ class DataService {
       const result = await response.json();
        
       if (!response.ok) {
+        if (response.status === 409 && result.code === 'SYNC_ALREADY_RUNNING' && result.job) {
+          return {
+            ...result,
+            alreadyRunning: true,
+            jobId: result.job.id
+          };
+        }
         throw new Error(result.error || 'Erro ao sincronizar');
       }
 
@@ -283,11 +290,11 @@ class DataService {
    */
   async startJiraSyncFromEnv() {
     try {
-      const response = await fetch(`${this._apiBase}/sync/start`, {
+      const response = await this._fetchWithTimeout(`${this._apiBase}/sync/start`, {
         method: 'POST',
         headers: this._getHeaders()
         // Sem body — credenciais sao lidas de env vars no servidor
-      });
+      }, 15000);
 
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
@@ -300,8 +307,12 @@ class DataService {
 
       if (!response.ok) {
         // 409 = SYNC_ALREADY_RUNNING
-        if (response.status === 409 && result.code === 'SYNC_ALREADY_RUNNING') {
-          throw new Error(result.error);
+        if (response.status === 409 && result.code === 'SYNC_ALREADY_RUNNING' && result.job) {
+          return {
+            ...result,
+            alreadyRunning: true,
+            jobId: result.job.id
+          };
         }
         throw new Error(result.error || 'Erro ao sincronizar');
       }
@@ -322,16 +333,29 @@ class DataService {
         ? `${this._apiBase}/sync/status?jobId=${encodeURIComponent(jobId)}`
         : `${this._apiBase}/sync/status`;
 
-      const response = await fetch(url, {
+      const response = await this._fetchWithTimeout(url, {
         headers: this._getHeaders()
-      });
+      }, 8000);
+      const contentType = response.headers.get('content-type') || '';
+      const result = contentType.includes('application/json') ? await response.json() : {};
       if (response.ok) {
-        return await response.json();
+        return result;
       }
+      return {
+        status: 'error',
+        error: result.error || `Falha ao buscar status da sincronizacao (${response.status})`,
+        logs: []
+      };
     } catch (error) {
       console.error('[DataService] Erro ao buscar status:', error.message);
+      return {
+        status: 'error',
+        error: error.name === 'AbortError'
+          ? 'Timeout ao consultar status da sincronizacao.'
+          : error.message,
+        logs: []
+      };
     }
-    return { isConfigured: false, lastSync: null };
   }
 
   /**
@@ -1049,7 +1073,7 @@ class DataService {
     });
     const team = Object.values(teamMap).sort((a, b) => b.totalTickets - a.totalTickets);
 
-    // Riscos e problemas
+    // Pontos de acompanhamento
     const risks = [];
     projectIssues.forEach(issue => {
       const statusName = issue.status.name.toLowerCase();
@@ -1173,13 +1197,13 @@ class DataService {
     }
 
     let farolCor = schedule.healthStatus || 'green';
-    let farolLabel = farolCor === 'red' ? 'Risco' : farolCor === 'yellow' ? 'Atenção' : 'Saudável';
+    let farolLabel = farolCor;
     if (schedule.healthStatus === 'green' && diferencaPercentual > 3) {
       farolCor = 'red';
-      farolLabel = 'Risco';
+      farolLabel = farolCor;
     } else if (schedule.healthStatus === 'green' && diferencaPercentual > 1) {
       farolCor = 'yellow';
-      farolLabel = 'Atenção';
+      farolLabel = farolCor;
     }
 
     const farol = {
