@@ -5,6 +5,7 @@ import { sanitize } from '../utils/helpers.js';
 const PROJECT_KEY = 'CRAWFORD';
 const TIME_ZONE = 'America/Sao_Paulo';
 let currentReport = null;
+let hoursBreakdownMode = 'card';
 
 function currentCompetence() {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -108,6 +109,31 @@ function applicationBars(items) {
   }).join('');
 }
 
+function cardBreakdown(entries) {
+  const cards = new Map();
+  for (const entry of entries) {
+    const ticket = entry.ticket || 'Sem ticket';
+    const current = cards.get(ticket) || {
+      name: `${ticket} · ${entry.issueDescription || entry.description || 'Sem descrição'}`,
+      hours: 0
+    };
+    current.hours += number(entry.timeHours ?? entry.hours ?? number(entry.timeSeconds) / 3600);
+    cards.set(ticket, current);
+  }
+  return [...cards.values()].sort((a, b) => b.hours - a.hours);
+}
+
+function renderHoursBreakdown(report) {
+  const target = document.getElementById('hours-breakdown-bars');
+  if (!target) return;
+  target.innerHTML = applicationBars(hoursBreakdownMode === 'card' ? cardBreakdown(report.entries) : report.byApplication);
+  document.querySelectorAll('[data-hours-breakdown]').forEach(button => {
+    const active = button.dataset.hoursBreakdown === hoursBreakdownMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
 function monthlyBars(items) {
   if (!items.length) return '<div class="hours-inline-empty">O histórico mensal ainda não está disponível.</div>';
   const max = Math.max(...items.map(item => number(item.usedHours)), 1);
@@ -177,7 +203,16 @@ function renderReport(report) {
       </div>
 
       <div class="hours-chart-grid">
-        <article class="hours-panel"><div class="hours-panel-heading"><h2>Horas por aplicativo / épico</h2><span>Distribuição da competência</span></div>${applicationBars(report.byApplication)}</article>
+        <article class="hours-panel">
+          <div class="hours-panel-heading">
+            <div><h2>Distribuição das horas</h2><span>Visualize todos os cards ou o consolidado executivo</span></div>
+            <div class="hours-segmented" aria-label="Agrupamento das horas">
+              <button type="button" data-hours-breakdown="card" aria-pressed="true">Por card (${cardBreakdown(report.entries).length})</button>
+              <button type="button" data-hours-breakdown="epic" aria-pressed="false">Por épico (${report.byApplication.length})</button>
+            </div>
+          </div>
+          <div id="hours-breakdown-bars">${applicationBars(cardBreakdown(report.entries))}</div>
+        </article>
         <article class="hours-panel"><div class="hours-panel-heading"><h2>Consumo por mês</h2><span>Histórico de horas utilizadas</span></div>${monthlyBars(report.monthlyHistory)}</article>
       </div>
 
@@ -189,6 +224,10 @@ function renderReport(report) {
 
   document.getElementById('hours-competence')?.addEventListener('change', event => loadReport(event.target.value));
   document.getElementById('hours-export')?.addEventListener('click', exportWorkbook);
+  document.querySelectorAll('[data-hours-breakdown]').forEach(button => button.addEventListener('click', () => {
+    hoursBreakdownMode = button.dataset.hoursBreakdown;
+    renderHoursBreakdown(report);
+  }));
 }
 
 function excelSafe(value) {
