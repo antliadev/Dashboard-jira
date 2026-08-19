@@ -150,10 +150,16 @@ function renderReport(report) {
   content.innerHTML = `
     <section class="hours-page">
       <div class="hours-toolbar">
-        <div>
-          <span class="hours-eyebrow">Controle executivo · ${sanitize(report.projectKey)}</span>
-          <h1>Relatório de Horas ${sanitize(competenceLabel(report.competence))}</h1>
-          <p>Consumo calculado pelos worklogs do Jira na competência selecionada.</p>
+        <div class="hours-report-intro">
+          <div class="hours-client-brand" aria-label="Cliente Crawford">
+            <span>Cliente</span>
+            <div class="hours-client-logo"><img src="/crawford-logo.png" alt="Crawford"></div>
+          </div>
+          <div>
+            <span class="hours-eyebrow">Controle executivo · ${sanitize(report.projectKey)}</span>
+            <h1>Relatório de Horas ${sanitize(competenceLabel(report.competence))}</h1>
+            <p>Consumo calculado pelos worklogs do Jira na competência selecionada.</p>
+          </div>
         </div>
         <div class="hours-actions">
           <label for="hours-competence">Competência
