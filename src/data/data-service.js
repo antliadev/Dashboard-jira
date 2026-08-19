@@ -548,6 +548,29 @@ class DataService {
   }
 
   /**
+   * Carrega o acompanhamento mensal de horas de um projeto.
+   * A competência usa o formato YYYY-MM e é calculada pelo backend a partir
+   * da data efetiva dos worklogs, não da data de criação do ticket.
+   */
+  async loadHoursDashboard(projectKey = 'CRAWFORD', competence = '') {
+    const params = new URLSearchParams({ projectKey });
+    if (competence) params.set('competence', competence);
+
+    const response = await this._fetchWithTimeout(
+      `${this._apiBase}/hours-dashboard?${params.toString()}`,
+      { headers: this._getHeaders() },
+      15000
+    );
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || payload.message || `Falha ao carregar horas (${response.status})`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Transforma dados brutos do Jira para o formato interno
    */
   transformJiraData(jiraData) {

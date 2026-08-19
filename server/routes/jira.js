@@ -25,6 +25,7 @@ import {
   upsertProjectMetadata,
 } from '../../lib/projectMetadataService.js';
 import { createSyncJob, createSyncJobFromEnv, getSyncJobStatus, runSyncJob, executeAutoSync } from '../../lib/syncJobService.js';
+import { fetchCrawfordHoursDashboard } from '../../lib/hoursDashboardService.js';
 
 const router = express.Router();
 
@@ -367,6 +368,19 @@ router.get('/dashboard', async (req, res) => {
   } catch (error) {
     console.error('[dashboard] Erro:', error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Relatorio mensal de horas. O escopo e fixo em Crawford para impedir que um
+// parametro do cliente exponha dados de outros projetos.
+router.get('/hours-dashboard', async (req, res) => {
+  try {
+    const data = await fetchCrawfordHoursDashboard({ competence: req.query.competence });
+    return res.json(data);
+  } catch (error) {
+    const status = /Competencia invalida/.test(error.message) ? 400 : 500;
+    console.error('[hours-dashboard] Erro:', error.message);
+    return res.status(status).json({ error: error.message });
   }
 });
 

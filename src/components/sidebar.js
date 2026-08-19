@@ -6,6 +6,7 @@ import { dataService } from '../data/data-service.js';
 const ICONS = {
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
   executive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+  hours: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M7 3L4 6M17 3l3 3"/></svg>',
   projects: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>',
   cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>',
   board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>',
@@ -31,6 +32,7 @@ export function renderSidebar() {
       <div class="nav-section" role="heading" aria-level="2">Principal</div>
       <button class="nav-item" data-route="/" onclick="location.hash='#/'" aria-label="Ir para Dashboard">${ICONS.dashboard}<span>Dashboard</span></button>
       <button class="nav-item" data-route="/executive" onclick="location.hash='#/executive'" aria-label="Ir para Resumo Executivo">${ICONS.executive}<span>Resumo Executivo</span></button>
+      <button class="nav-item" data-route="/hours" onclick="location.hash='#/hours'" aria-label="Ir para Controle de Horas Crawford">${ICONS.hours}<span>Horas Crawford</span></button>
       <button class="nav-item" data-route="/board" onclick="location.hash='#/board'" aria-label="Ir para Board Kanban">${ICONS.board}<span>Board Kanban</span></button>
       <button class="nav-item" data-route="/gantt" onclick="location.hash='#/gantt'" aria-label="Ir para Gantt">${ICONS.gantt}<span>Gantt</span></button>
       <button class="nav-item" data-route="/projects" onclick="location.hash='#/projects'" aria-label="Ir para Projetos">${ICONS.projects}<span>Projetos</span></button>

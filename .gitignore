@@ -39,6 +39,9 @@ update-connection-token.js
 
 .vercel
 
+# Grafo local de arquitetura (artefato regenerável)
+graphify-out/
+
 # Arquivos de avaliação (nunca commitar)
 AVALIACAO_*.md
 CONTEXTO_AVALIACAO.md

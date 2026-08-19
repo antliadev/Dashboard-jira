@@ -21,6 +21,7 @@ const pageImports = {
   '/data': () => import('./pages/data.js'),
   '/board': () => import('./pages/board.js'),
   '/executive': () => import('./pages/executive.js'),
+  '/hours': () => import('./pages/hours.js'),
 };
 
 // Carregamento lazy de páginas
@@ -33,7 +34,7 @@ async function loadPage(path) {
       const module = await importFn();
       pageModules[normalizedPath] = module.renderDashboard || module.renderLogin || 
         module.renderProjects || module.renderCards || module.renderAnalysts || 
-        module.renderData || module.renderBoard || module.renderExecutive;
+        module.renderData || module.renderBoard || module.renderExecutive || module.renderHours;
     }
   }
   
@@ -128,6 +129,7 @@ registerRoute('/board', () => renderRoute(() => import('./pages/board.js'), 'ren
 registerRoute('/data', () => renderRoute(() => import('./pages/data.js'), 'renderData', {}, { skipDataLoad: true }));
 registerRoute('/executive', () => renderRoute(() => import('./pages/executive.js'), 'renderExecutive'));
 registerRoute('/executive/:projectKey', (params) => renderRoute(() => import('./pages/executive.js'), 'renderExecutive', params));
+registerRoute('/hours', () => renderRoute(() => import('./pages/hours.js'), 'renderHours', {}, { skipDataLoad: true }));
 registerRoute('/gantt', () => renderRoute(() => import('./pages/gantt.js'), 'renderGantt'));
 
 // Rotas de detalhe ( redireciona para board com filtro)
