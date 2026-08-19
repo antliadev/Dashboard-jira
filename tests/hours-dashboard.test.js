@@ -6,6 +6,7 @@ import {
   competenceFromStarted,
   validateCompetence
 } from '../lib/hoursDashboardService.js';
+import { fetchCrawfordWorklogsFromJira } from '../lib/jiraWorklogService.js';
 
 test('competencia respeita America/Sao_Paulo na virada UTC', () => {
   assert.equal(competenceFromStarted('2026-09-01T01:30:00.000Z'), '2026-08');
@@ -48,4 +49,28 @@ test('dashboard agrupa por competencia e epic/aplicacao sem solicitante', () => 
 test('valida competencia da API', () => {
   assert.equal(validateCompetence('2026-08'), '2026-08');
   assert.throws(() => validateCompetence('08/2026'), /YYYY-MM/);
+});
+
+test('fallback consulta apenas worklogs Crawford e normaliza tickets do banco', async () => {
+  const originalFetch = global.fetch;
+  const requested = [];
+  global.fetch = async url => {
+    requested.push(String(url));
+    return new Response(JSON.stringify({
+      total: 1,
+      worklogs: [{ id: '99', started: '2026-08-19T12:00:00.000Z', timeSpentSeconds: 1800, author: { displayName: 'Pedro' } }]
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const rows = await fetchCrawfordWorklogsFromJira([
+      { issue_id: '10', issue_key: 'CRAWFORD-10' },
+      { issue_id: '20', issue_key: 'P1-20' }
+    ], { baseUrl: 'https://example.atlassian.net', email: 'dev@example.com', token: 'secret' });
+    assert.equal(requested.length, 1);
+    assert.match(requested[0], /CRAWFORD-10/);
+    assert.equal(rows[0].issue_key, 'CRAWFORD-10');
+    assert.equal(rows[0].time_spent_seconds, 1800);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
