@@ -6,8 +6,19 @@
   <meta name="description" content="Painel de Gestão Jira - Visão executiva de projetos, cards e analistas" />
   <title>Jira Dashboard — Gestão de Projetos</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script>
+    (() => {
+      const saved = localStorage.getItem('jira-dashboard-theme');
+      const theme = saved === 'light' || saved === 'dark'
+        ? saved
+        : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    })();
+  </script>
 </head>
 <body>
+  <button id="mobile-theme-toggle" class="mobile-theme-toggle" type="button" aria-label="Alternar tema"></button>
   <div id="app" class="app-layout">
     <aside id="sidebar" class="sidebar"></aside>
     <main class="main-content">

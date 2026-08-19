@@ -130,11 +130,13 @@ function addLoginStyles() {
       align-items: center;
       justify-content: center;
       padding: 20px;
-      background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
+      background:
+        radial-gradient(circle at 20% 15%, var(--accent-glow), transparent 34%),
+        linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
     }
     
     .login-card {
-      background: var(--surface);
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 40px;
@@ -195,7 +197,7 @@ function addLoginStyles() {
       padding: 12px 16px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--background);
+      background: var(--bg-input);
       color: var(--text-primary);
       font-size: 14px;
       transition: border-color 0.2s, box-shadow 0.2s;

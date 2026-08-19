@@ -7,6 +7,7 @@ import { initRouter, registerRoute, setNotFound, setAuthGuard } from './utils/ro
 import { renderSidebar } from './components/sidebar.js';
 import { dataService } from './data/data-service.js';
 import { sanitize } from './utils/helpers.js';
+import { getTheme, toggleTheme } from './utils/theme.js';
 
 // Cache de módulos carregados (lazy loading)
 const pageModules = {};
@@ -283,6 +284,15 @@ function updateLayout(authenticated) {
   }
 }
 
+function syncMobileThemeButton() {
+  const button = document.getElementById('mobile-theme-toggle');
+  if (!button) return;
+  const isLight = getTheme() === 'light';
+  button.textContent = isLight ? '☀' : '☾';
+  button.setAttribute('aria-label', isLight ? 'Ativar tema escuro' : 'Ativar tema claro');
+  button.setAttribute('aria-pressed', String(isLight));
+}
+
 window.updateLayout = updateLayout;
 window.setSessionId = setSessionId;
 window.clearSession = clearSession;
@@ -290,6 +300,14 @@ window.clearSession = clearSession;
 // ─── Inicialização ──────────────────────────────────────
 
 async function initApp() {
+  syncMobileThemeButton();
+  document.getElementById('mobile-theme-toggle')?.addEventListener('click', () => {
+    toggleTheme();
+    syncMobileThemeButton();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+  window.addEventListener('themechange', syncMobileThemeButton);
+
   // Define o guard de autenticação
   setAuthGuard(authGuard);
 

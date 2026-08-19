@@ -38,6 +38,38 @@
   --gantt-border-divider: rgba(255, 255, 255, 0.06);
 }
 
+:root[data-theme="light"] {
+  --gantt-bar-done: #047857;
+  --gantt-bar-progress: #1d4ed8;
+  --gantt-bar-overdue: #b91c1c;
+  --gantt-bar-future: #6d28d9;
+  --gantt-bar-todo: #475569;
+  --gantt-bar-fallback: #b45309;
+  --gantt-shadow-sm: 0 1px 3px rgba(30, 41, 59, 0.1);
+  --gantt-shadow-md: 0 4px 12px rgba(30, 41, 59, 0.12);
+  --gantt-shadow-lg: 0 8px 32px rgba(30, 41, 59, 0.16);
+  --gantt-weekend-color: rgba(100, 116, 139, 0.07);
+  --gantt-border-divider: rgba(100, 116, 139, 0.16);
+}
+
+[data-theme="light"] .gantt-no-date-stat-value,
+[data-theme="light"] .gantt-group-warning { color:var(--warning) !important; }
+[data-theme="light"] .gantt-summary-card:has(.gantt-summary-icon.overdue) .gantt-summary-value { color:#b91c1c !important; }
+[data-theme="light"] .gantt-summary-card:has(.gantt-summary-icon.no-date) .gantt-summary-value { color:#92400e !important; }
+[data-theme="light"] .gantt-summary-card:has(.gantt-summary-icon.due-only) .gantt-summary-value { color:#6d28d9 !important; }
+[data-theme="light"] .gantt-hierarchy-pill.green { color:#047857; }
+[data-theme="light"] .gantt-hierarchy-pill.yellow { color:#92400e; }
+[data-theme="light"] .gantt-hierarchy-pill.red { color:#b91c1c; }
+[data-theme="light"] .gantt-row-badge.done,
+[data-theme="light"] .gantt-row-badge.priority-low,
+[data-theme="light"] .gantt-row-badge.priority-lowest { color:#047857; }
+[data-theme="light"] .gantt-row-badge.in_progress { color:#1d4ed8; }
+[data-theme="light"] .gantt-row-badge.overdue,
+[data-theme="light"] .gantt-row-badge.blocked,
+[data-theme="light"] .gantt-row-badge.priority-high { color:#b91c1c; }
+[data-theme="light"] .gantt-row-badge.priority-medium { color:#854d0e; }
+[data-theme="light"] .gantt-row-badge.todo { color:#475569; }
+
 /* ═══════════════════════════════════════════════════════════
    CONTAINER PRINCIPAL
    ═══════════════════════════════════════════════════════════ */

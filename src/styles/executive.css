@@ -8,6 +8,88 @@
   padding: 0;
 }
 
+/* Tema claro: superfícies e textos executivos usam os tokens globais. */
+[data-theme="light"] .executive-page { background:var(--bg-primary); }
+[data-theme="light"] .executive-header,
+[data-theme="light"] .executive-card,
+[data-theme="light"] .executive-status-card,
+[data-theme="light"] .executive-kpi-card,
+[data-theme="light"] .executive-list-item,
+[data-theme="light"] .executive-team-item,
+[data-theme="light"] .executive-risk-item,
+[data-theme="light"] .executive-select-card,
+[data-theme="light"] .farol-card,
+[data-theme="light"] .exec-topbar,
+[data-theme="light"] .exec-kpi-card,
+[data-theme="light"] .exec-card { background:linear-gradient(180deg,#fff,#f8fafc); border-color:var(--border); box-shadow:var(--shadow); }
+[data-theme="light"] .executive-list-item:hover,
+[data-theme="light"] .executive-team-item:hover { background:var(--bg-card-hover); border-color:var(--border-light); }
+[data-theme="light"] .executive-project-select,
+[data-theme="light"] .exec-schedule-list input { color:var(--text-primary); background:var(--bg-input); border-color:var(--border-light); color-scheme:light; }
+[data-theme="light"] .executive-bar-track { background:#e2e8f0; }
+[data-theme="light"] .exec-project-pill,
+[data-theme="light"] .exec-health-pill { color:var(--text-primary); background:#f1f5f9; border-color:var(--border); }
+[data-theme="light"] .exec-schedule-list,
+[data-theme="light"] .exec-metric-box,
+[data-theme="light"] .exec-timeline { background:#f8fafc; border-color:var(--border); }
+[data-theme="light"] .executive-project-title h1,
+[data-theme="light"] .executive-kpi-value,
+[data-theme="light"] .executive-list-title,
+[data-theme="light"] .executive-bar-header span:first-child,
+[data-theme="light"] .executive-bar-count,
+[data-theme="light"] .executive-team-name,
+[data-theme="light"] .executive-risk-title,
+[data-theme="light"] .executive-select-container h2,
+[data-theme="light"] .executive-select-name,
+[data-theme="light"] .executive-empty h3,
+[data-theme="light"] .farol-title,
+[data-theme="light"] .farol-detail-value,
+[data-theme="light"] .exec-topbar h1,
+[data-theme="light"] .exec-kpi-card strong,
+[data-theme="light"] .exec-schedule-list strong,
+[data-theme="light"] .exec-team-member strong,
+[data-theme="light"] .exec-deliverable-row strong,
+[data-theme="light"] .exec-risk-item strong { color:var(--text-primary); }
+[data-theme="light"] .executive-project-meta,
+[data-theme="light"] .executive-card-title,
+[data-theme="light"] .executive-label,
+[data-theme="light"] .executive-status-desc,
+[data-theme="light"] .executive-kpi-label,
+[data-theme="light"] .executive-list-meta,
+[data-theme="light"] .executive-list-empty,
+[data-theme="light"] .executive-team-tickets,
+[data-theme="light"] .executive-risk-meta,
+[data-theme="light"] .executive-select-container p,
+[data-theme="light"] .executive-empty,
+[data-theme="light"] .executive-empty p,
+[data-theme="light"] .farol-subtitle,
+[data-theme="light"] .farol-detail-label,
+[data-theme="light"] .exec-sync,
+[data-theme="light"] .exec-kpi-card small,
+[data-theme="light"] .exec-card-title,
+[data-theme="light"] .exec-kpi-card p,
+[data-theme="light"] .exec-card-title-row p,
+[data-theme="light"] .exec-schedule-list span,
+[data-theme="light"] .exec-schedule-list small,
+[data-theme="light"] .exec-metric-box small,
+[data-theme="light"] .exec-metric-box p,
+[data-theme="light"] .exec-timeline-legend span,
+[data-theme="light"] .exec-timeline-points small,
+[data-theme="light"] .exec-team-member span,
+[data-theme="light"] .exec-deliverable-row em,
+[data-theme="light"] .exec-compact-list small,
+[data-theme="light"] .exec-risk-item span { color:var(--text-secondary); }
+[data-theme="light"] .executive-v2 :is(h1,h2,h3,strong) { color:var(--text-primary); }
+[data-theme="light"] .exec-save-btn { color:#1d4ed8; background:#eff6ff; border-color:#93c5fd; }
+[data-theme="light"] .exec-timeline-empty { color:#92400e; }
+[data-theme="light"] .exec-kpi-card.success strong,
+[data-theme="light"] .exec-metric-box.success strong,
+[data-theme="light"] .exec-schedule-list strong.success { color:#047857; }
+[data-theme="light"] .exec-kpi-card.warning strong,
+[data-theme="light"] .exec-schedule-list strong.warning { color:#92400e; }
+[data-theme="light"] .exec-kpi-card.danger strong,
+[data-theme="light"] .exec-schedule-list strong.danger { color:#b91c1c; }
+
 /* =========================================
    EXECUTIVE PAGE CONTAINER
    ========================================= */

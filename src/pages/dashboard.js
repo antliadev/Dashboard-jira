@@ -787,7 +787,7 @@ async function initCharts(stats, workload) {
       },
       options: {
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#9ca3b8', padding: 20, font: { size: 11 } } }
+          legend: { position: 'bottom', labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim(), padding: 20, font: { size: 11 } } }
         },
         cutout: '70%'
       }

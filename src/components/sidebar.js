@@ -2,6 +2,7 @@
  * sidebar.js — Componente de navegação lateral
  */
 import { dataService } from '../data/data-service.js';
+import { getTheme, toggleTheme } from '../utils/theme.js';
 
 const ICONS = {
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
@@ -21,6 +22,7 @@ export function renderSidebar() {
   const sourceLabel = source === 'empty' ? 'Sem dados' : 
                       source === 'mock' ? 'Mock Data' : 
                       source === 'imported' ? 'Importado' : 'API Jira';
+  const isLight = getTheme() === 'light';
   sidebar.innerHTML = `
     <div class="sidebar-header" role="banner">
       <div class="sidebar-logo">
@@ -42,10 +44,20 @@ export function renderSidebar() {
       <button class="nav-item" data-route="/data" onclick="location.hash='#/data'" aria-label="Ir para Dados">${ICONS.data}<span>Dados</span></button>
     </nav>
     <div class="sidebar-footer" role="contentinfo">
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="${isLight ? 'Ativar tema escuro' : 'Ativar tema claro'}" aria-pressed="${isLight}">
+        <span class="theme-toggle-icon" aria-hidden="true">${isLight ? '☀' : '☾'}</span>
+        <span>${isLight ? 'Tema claro' : 'Tema escuro'}</span>
+        <span class="theme-toggle-hint">Alternar</span>
+      </button>
       <div class="data-source-badge" aria-label="Fonte de dados atual">
         <span class="dot ${source}" aria-hidden="true"></span>
         <span>Fonte: <strong>${sourceLabel}</strong></span>
       </div>
     </div>
   `;
+  document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    toggleTheme();
+    renderSidebar();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
 }
