@@ -1,0 +1,31 @@
+name: Sincronização Automática Jira
+
+on:
+  schedule:
+    # A cada 1 hora entre 09:00 e 21:00 UTC (06:00 às 18:00 BRT), de segunda a sexta-feira
+    - cron: '0 9-21 * * 1-5'
+  workflow_dispatch: # Permite disparar manualmente pela aba Actions do GitHub
+
+jobs:
+  auto-sync:
+    name: Executar Auto-Sync Jira
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar worker de sincronização
+        run: |
+          echo "Disparando worker de sincronização no backend..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://jiradash.antlia.com.br/api/jira/sync/worker" \
+            -H "Content-Type: application/json" \
+            ${{ secrets.CRON_SECRET != '' && format('-H "Authorization: Bearer {0}"', secrets.CRON_SECRET) || '' }})
+          
+          BODY=$(echo "$RESPONSE" | sed -e '$d')
+          STATUS=$(echo "$RESPONSE" | tail -n1 | cut -d':' -f2)
+
+          echo "Status retornado: $STATUS"
+          echo "Resposta: $BODY"
+
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "Sincronização executada com sucesso!"
+          else
+            echo "Aviso: Servidor retornou código HTTP $STATUS"
+          fi
