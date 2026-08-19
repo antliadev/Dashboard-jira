@@ -15,7 +15,7 @@
   "crons": [
     {
       "path": "/api/jira/sync/worker",
-      "schedule": "0 3 * * *"
+      "schedule": "0 9-21 * * 1-5"
     }
   ],
   "rewrites": [

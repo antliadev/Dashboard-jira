@@ -24,7 +24,7 @@ import {
   listProjectMetadata,
   upsertProjectMetadata,
 } from '../../lib/projectMetadataService.js';
-import { createSyncJob, createSyncJobFromEnv, getSyncJobStatus, runSyncJob } from '../../lib/syncJobService.js';
+import { createSyncJob, createSyncJobFromEnv, getSyncJobStatus, runSyncJob, executeAutoSync } from '../../lib/syncJobService.js';
 
 const router = express.Router();
 
@@ -309,6 +309,25 @@ router.post('/sync/start', async (req, res) => {
       });
     }
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// ALL /api/jira/sync/worker — Endpoint de sincronizacao agendada (Cron/Worker)
+// ─────────────────────────────────────────────
+router.all('/sync/worker', async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ success: false, error: 'Worker nao autorizado.' });
+  }
+
+  try {
+    const result = await executeAutoSync('api-worker', { forceScheduleCheck: false });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.error('[sync-worker] Erro:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

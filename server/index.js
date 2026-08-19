@@ -90,12 +90,58 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
 });
 
-// Iniciar servidor
+// Agendador de sincronização automática em background (para servidor Node/Standalone)
+// Executa a cada 1 hora entre 06:00 e 18:00 de segunda a sexta-feira (Horário de Brasília)
+function initAutoSyncScheduler() {
+  let lastRanKey = '';
+
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Sao_Paulo',
+        hour12: false,
+        weekday: 'short',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const parts = formatter.formatToParts(now);
+      const weekday = parts.find(p => p.type === 'weekday')?.value || '';
+      const year = parts.find(p => p.type === 'year')?.value || '';
+      const month = parts.find(p => p.type === 'month')?.value || '';
+      const day = parts.find(p => p.type === 'day')?.value || '';
+      const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '-1', 10);
+      const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '-1', 10);
+
+      const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+      const isHourRange = hour >= 6 && hour <= 18;
+      const currentKey = `${year}-${month}-${day}T${hour}`;
+
+      // Executa no início de cada hora (minuto 0) ou logo que detectar a nova hora dentro da janela
+      if (isWeekday && isHourRange && minute === 0 && lastRanKey !== currentKey) {
+        lastRanKey = currentKey;
+        console.log(`[AutoSync] Disparando sincronizacao automatica (${hour}:00 BRT - ${weekday})...`);
+        const { executeAutoSync } = await import('../lib/syncJobService.js');
+        const result = await executeAutoSync('node-scheduler', { forceScheduleCheck: true });
+        console.log('[AutoSync] Resultado da sincronizacao automatica:', result?.status || 'concluido');
+      }
+    } catch (err) {
+      console.error('[AutoSync] Erro no agendador:', err.message);
+    }
+  }, 30 * 1000); // Checa a cada 30 segundos
+}
+
+// Iniciar servidor e agendador
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`[Server] Rodando na porta ${PORT}`);
     console.log(`[Server] API Jira: http://localhost:${PORT}/api/jira`);
+    initAutoSyncScheduler();
   });
 }
 
 export default app;
+

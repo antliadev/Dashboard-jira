@@ -1,8 +1,8 @@
 /**
- * data.js - Tela simples para iniciar e acompanhar sync Jira no backend.
+ * data.js - Tela simplificada para visualização de status e sincronização Jira.
  *
- * As credenciais do Jira sao lidas de variaveis de ambiente no servidor.
- * O frontend nunca recebe ou envia credenciais.
+ * Exibe a data da última sincronização, se foi bem-sucedida, informação da
+ * rotina automática (06h às 18h, seg-sex, a cada 1h) e botão para sincronização manual.
  */
 import { dataService } from '../data/data-service.js';
 import { renderSidebar } from '../components/sidebar.js';
@@ -35,11 +35,8 @@ function markSyncTimeout(status) {
   return {
     ...status,
     status: 'error',
-    error: 'Tempo limite da sincronizacao atingido. O job pode ter sido interrompido no backend; tente novamente ou verifique os logs.',
-    logs: [
-      ...(Array.isArray(status?.logs) ? status.logs : []),
-      { at: new Date().toISOString(), message: 'Frontend encerrou o acompanhamento por timeout.' }
-    ].slice(-80)
+    error: 'Tempo limite da sincronização atingido. Tente novamente.',
+    logs: []
   };
 }
 
@@ -47,8 +44,8 @@ export function renderData() {
   const header = document.getElementById('page-header');
   header.innerHTML = `
     <div>
-      <h2>Importacao de Dados</h2>
-      <div class="subtitle">Sincronizacao Jira executada pelo back-end</div>
+      <h2>Importação de Dados</h2>
+      <div class="subtitle">Status da sincronização automática e manual com o Jira</div>
     </div>
   `;
 
@@ -99,8 +96,7 @@ function startPolling(jobId) {
     } catch (error) {
       syncStatus = {
         status: 'error',
-        error: error.message,
-        logs: []
+        error: error.message
       };
       renderDataContent();
       stopPolling({ clearJob: true });
@@ -108,103 +104,126 @@ function startPolling(jobId) {
   }, POLLING_INTERVAL_MS);
 }
 
-function getStatusMessage() {
-  if (!syncStatus || syncStatus.status === 'idle') {
-    return {
-      className: 'sync-status-idle',
-      title: 'Aguardando sincronizacao.',
-      detail: 'Clique em "Iniciar sincronizacao" para importar os tickets do Jira.'
-    };
-  }
-
-  if (syncStatus.status === 'queued') {
-    return {
-      className: 'sync-status-running',
-      title: 'Sincronizacao aguardando processamento.',
-      detail: 'O job ja foi criado no back-end.'
-    };
-  }
-
-  if (syncStatus.status === 'running') {
-    return {
-      className: 'sync-status-running',
-      title: 'Sincronizando dados no back-end...',
-      detail: 'Voce pode fechar esta aba; o processo continuara no servidor.'
-    };
-  }
-
-  if (syncStatus.status === 'success') {
-    return {
-      className: 'sync-status-success',
-      title: 'Tickets sincronizados com sucesso.',
-      detail: `${syncStatus.totalIssues || 0} tickets processados.`
-    };
-  }
-
-  return {
-    className: 'sync-status-error',
-    title: 'Erro na sincronizacao.',
-    detail: syncStatus.error || 'Erro desconhecido durante a sincronizacao.'
-  };
-}
-
 function renderDataContent() {
   const content = document.getElementById('page-content');
-  const status = getStatusMessage();
-  const isProcessing = ACTIVE_SYNC_STATUSES.has(syncStatus?.status);
-  const logs = Array.isArray(syncStatus?.logs) ? syncStatus.logs.slice(-6) : [];
   const metadata = dataService.getSyncMetadata();
-  const lastSyncLabel = metadata.lastSyncedAt
-    ? new Date(metadata.lastSyncedAt).toLocaleString('pt-BR')
-    : 'Nunca';
+  const isProcessing = ACTIVE_SYNC_STATUSES.has(syncStatus?.status);
+
+  // Determinar status efetivo e última sincronização
+  const effectiveStatus = isProcessing
+    ? syncStatus.status
+    : (syncStatus?.status || metadata.lastSyncStatus || 'idle');
+
+  const rawLastSync = syncStatus?.finishedAt || metadata.lastSyncedAt || syncStatus?.startedAt || syncStatus?.createdAt;
+  const lastSyncDate = rawLastSync ? new Date(rawLastSync) : null;
+  const formattedLastSync = (lastSyncDate && !isNaN(lastSyncDate.getTime()))
+    ? lastSyncDate.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    : 'Nenhuma sincronização realizada';
+
+  const isSuccess = effectiveStatus === 'success';
+  const isError = effectiveStatus === 'error';
+  const errorMessage = syncStatus?.error || metadata.error || null;
 
   content.innerHTML = `
-    <div class="sync-page">
-      <section class="sync-panel">
-        <div class="sync-panel-info">
-          <div class="sync-panel-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-            </svg>
-          </div>
-          <div>
-            <strong>Sincronizacao gerenciada pelo servidor</strong>
-            <p>As credenciais do Jira estao configuradas no backend via variaveis de ambiente.</p>
-            <p>Nao e necessario preencher nenhum dado no navegador.</p>
+    <div class="sync-container">
+      <!-- Banner informativo de agendamento automático -->
+      <div class="auto-sync-banner">
+        <div class="banner-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <div class="banner-content">
+          <strong>Sincronização Automática Ativa</strong>
+          <p>Os dados são atualizados automaticamente <strong>a cada 1 hora</strong>, de <strong>segunda a sexta-feira</strong>, entre as <strong>06:00 e as 18:00</strong>.</p>
+        </div>
+      </div>
+
+      <!-- Card principal de status da sincronização -->
+      <div class="sync-status-card ${isProcessing ? 'status-running' : isSuccess ? 'status-success' : isError ? 'status-error' : 'status-idle'}">
+        <div class="status-indicator">
+          ${isProcessing ? `
+            <div class="status-icon-badge running">
+              <span class="spinner" style="width: 28px; height: 28px; border-width: 3px;"></span>
+            </div>
+          ` : isSuccess ? `
+            <div class="status-icon-badge success">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+          ` : isError ? `
+            <div class="status-icon-badge error">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+          ` : `
+            <div class="status-icon-badge idle">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+            </div>
+          `}
+
+          <div class="status-text-group">
+            <span class="status-pill ${isProcessing ? 'pill-running' : isSuccess ? 'pill-success' : isError ? 'pill-error' : 'pill-idle'}">
+              ${isProcessing ? 'Sincronizando no backend' : isSuccess ? 'Bem-sucedida' : isError ? 'Falha na sincronização' : 'Aguardando sincronização'}
+            </span>
+            <h3 class="status-title">
+              ${isProcessing
+                ? 'Sincronização em andamento...'
+                : isSuccess
+                  ? 'Sincronizado com sucesso'
+                  : isError
+                    ? 'Erro na sincronização'
+                    : 'Nenhuma sincronização recente'}
+            </h3>
           </div>
         </div>
 
-        <button class="btn btn-primary" id="btn-start-sync" ${isProcessing ? 'disabled' : ''}>
-          ${isProcessing
-            ? '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Sincronizando...'
-            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Iniciar sincronizacao'}
-        </button>
-      </section>
+        <div class="sync-info-row">
+          <div class="info-block">
+            <span class="info-label">Última sincronização</span>
+            <strong class="info-value">${sanitize(formattedLastSync)}</strong>
+          </div>
+          <div class="info-block">
+            <span class="info-label">Status</span>
+            <strong class="info-value ${isSuccess ? 'text-success' : isError ? 'text-danger' : isProcessing ? 'text-accent' : ''}">
+              ${isProcessing ? 'Processando' : isSuccess ? 'Concluída com sucesso' : isError ? 'Falhou' : 'Pendente'}
+            </strong>
+          </div>
+        </div>
 
-      <section class="sync-status ${status.className}">
-        <div class="sync-status-header">
-          ${isProcessing ? '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></span>' : ''}
-          <strong>${sanitize(status.title)}</strong>
-        </div>
-        <p>${sanitize(status.detail)}</p>
-        <div class="sync-metrics">
-          <div><span>Total no dashboard</span><strong>${sanitize(String(metadata.totalIssues || 0))}</strong></div>
-          <div><span>Ultima sync</span><strong>${sanitize(lastSyncLabel)}</strong></div>
-          <div><span>Status real</span><strong>${sanitize(metadata.lastSyncStatus || syncStatus?.status || 'idle')}</strong></div>
-          <div><span>Inseridos / atualizados</span><strong>${sanitize(String(syncStatus?.inserted ?? metadata.inserted ?? 0))} / ${sanitize(String(syncStatus?.updated ?? metadata.updated ?? 0))}</strong></div>
-        </div>
-        ${syncStatus?.id ? `<div class="sync-job-id">Job: ${sanitize(syncStatus.id)}</div>` : ''}
-        ${logs.length ? `
-          <div class="sync-log-list">
-            ${logs.map(log => `
-              <div>
-                <span>${sanitize(new Date(log.at).toLocaleTimeString())}</span>
-                ${sanitize(log.message)}
-              </div>
-            `).join('')}
+        ${isError && errorMessage ? `
+          <div class="sync-error-box">
+            <strong>Detalhe do erro:</strong>
+            <p>${sanitize(errorMessage)}</p>
           </div>
         ` : ''}
-      </section>
+
+        <!-- Botão para sincronização manual -->
+        <div class="sync-action-container">
+          <button class="btn btn-primary btn-sync" id="btn-start-sync" ${isProcessing ? 'disabled' : ''}>
+            ${isProcessing
+              ? '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-right: 8px;"></span> Sincronizando dados...'
+              : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Iniciar sincronização manual'}
+          </button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -218,10 +237,9 @@ function setupEventListeners() {
     if (!btn || btn.disabled || ACTIVE_SYNC_STATUSES.has(syncStatus?.status)) return;
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> Iniciando...';
+    btn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-right: 8px;"></span> Iniciando...';
 
     try {
-      // Chama endpoint que usa apenas env vars (sem enviar credenciais do frontend)
       const result = await dataService.startJiraSyncFromEnv();
       syncStatus = result.job || {
         id: result.jobId,
@@ -238,8 +256,7 @@ function setupEventListeners() {
     } catch (error) {
       syncStatus = {
         status: 'error',
-        error: error.message,
-        logs: []
+        error: error.message
       };
       stopPolling({ clearJob: true });
       renderDataContent();
@@ -253,149 +270,242 @@ function addDataStyles() {
   const style = document.createElement('style');
   style.id = 'data-sync-styles';
   style.textContent = `
-    .sync-page {
-      max-width: 760px;
+    .sync-container {
+      max-width: 640px;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 24px;
     }
 
-    .sync-panel,
-    .sync-status {
-      border: 1px solid var(--border);
-      background: var(--surface);
-      border-radius: 8px;
-      padding: 24px;
-    }
-
-    .sync-panel-info {
+    .auto-sync-banner {
       display: flex;
       gap: 16px;
-      align-items: flex-start;
-      margin-bottom: 24px;
-      padding: 16px;
-      background: var(--bg-secondary);
-      border-radius: 8px;
-      border: 1px solid var(--border);
+      align-items: center;
+      padding: 16px 20px;
+      background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+      border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+      border-radius: 12px;
     }
 
-    .sync-panel-icon {
+    .banner-icon {
       flex-shrink: 0;
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
       border-radius: 10px;
       color: var(--accent);
     }
 
-    .sync-panel-info strong {
+    .banner-content strong {
       display: block;
-      color: var(--text-primary);
       font-size: 14px;
-      margin-bottom: 6px;
+      color: var(--text-primary);
+      margin-bottom: 3px;
     }
 
-    .sync-panel-info p {
-      margin: 0 0 4px 0;
-      color: var(--text-secondary);
+    .banner-content p {
+      margin: 0;
       font-size: 13px;
-      line-height: 1.5;
+      color: var(--text-secondary);
+      line-height: 1.45;
     }
 
-    .sync-panel-info p:last-child {
-      margin-bottom: 0;
+    .sync-status-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      position: relative;
+      overflow: hidden;
     }
 
-    .sync-panel .btn {
-      width: 100%;
-      justify-content: center;
-      min-height: 44px;
+    .sync-status-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--border);
     }
 
-    .sync-status {
-      border-left-width: 4px;
+    .sync-status-card.status-success::before {
+      background: #10b981;
     }
 
-    .sync-status-header {
+    .sync-status-card.status-error::before {
+      background: #ef4444;
+    }
+
+    .sync-status-card.status-running::before {
+      background: var(--accent);
+    }
+
+    .status-indicator {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-      color: var(--text-primary);
+      gap: 18px;
     }
 
-    .sync-status p {
-      margin: 0;
-      color: var(--text-secondary);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .sync-metrics {
-      margin-top: 16px;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .sync-metrics div {
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px 12px;
-      background: var(--bg-secondary);
-    }
-
-    .sync-metrics span {
-      display: block;
-      color: var(--text-muted);
-      font-size: 11px;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-    }
-
-    .sync-metrics strong {
-      color: var(--text-primary);
-      font-size: 14px;
-    }
-
-    .sync-status-idle { border-left-color: var(--border); }
-    .sync-status-running { border-left-color: var(--accent); }
-    .sync-status-success { border-left-color: var(--success); }
-    .sync-status-error { border-left-color: var(--danger); }
-
-    .sync-job-id {
-      margin-top: 12px;
-      font-size: 12px;
-      color: var(--text-muted);
-      font-family: monospace;
-    }
-
-    .sync-log-list {
-      margin-top: 16px;
-      display: grid;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .sync-log-list div {
+    .status-icon-badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
       display: flex;
-      gap: 10px;
-      align-items: baseline;
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
 
-    .sync-log-list span {
+    .status-icon-badge.success {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+
+    .status-icon-badge.error {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+    }
+
+    .status-icon-badge.running {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent);
+    }
+
+    .status-icon-badge.idle {
+      background: color-mix(in srgb, var(--text-muted) 12%, transparent);
       color: var(--text-muted);
-      font-family: monospace;
-      white-space: nowrap;
+    }
+
+    .status-text-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      width: fit-content;
+    }
+
+    .status-pill.pill-success {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+    }
+
+    .status-pill.pill-error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+
+    .status-pill.pill-running {
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+      color: var(--accent);
+    }
+
+    .status-pill.pill-idle {
+      background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+      color: var(--text-muted);
+    }
+
+    .status-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .sync-info-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .info-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .info-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .text-success { color: #10b981 !important; }
+    .text-danger { color: #ef4444 !important; }
+    .text-accent { color: var(--accent) !important; }
+
+    .sync-error-box {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      color: #ef4444;
+    }
+
+    .sync-error-box strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .sync-error-box p {
+      margin: 0;
+      word-break: break-word;
+    }
+
+    .sync-action-container {
+      margin-top: 4px;
+    }
+
+    .btn-sync {
+      width: 100%;
+      min-height: 46px;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    @media (max-width: 480px) {
+      .sync-info-row {
+        grid-template-columns: 1fr;
+      }
     }
   `;
 
   document.head.appendChild(style);
 }
+
