@@ -11,6 +11,7 @@ const columnVisibleLimits = {};
 let viewMode = 'kanban';
 let visibleCount = PAGE_SIZE;
 let currentFilters = defaultFilters();
+let filtersExpanded = false;
 
 function defaultFilters() {
   return {
@@ -92,9 +93,9 @@ function renderHeader() {
   const header = document.getElementById('page-header');
   header.innerHTML = `<div><h2>Issues</h2><div class="subtitle">Kanban e lista operacional usando a mesma fonte e os mesmos filtros</div></div>
     <div class="page-actions issue-view-actions"><div class="issue-view-toggle" role="group" aria-label="Modo de visualizacao">
-      <button class="btn btn-secondary ${viewMode === 'kanban' ? 'active' : ''}" data-view="kanban" aria-pressed="${viewMode === 'kanban'}">Modo Kanban</button>
-      <button class="btn btn-secondary ${viewMode === 'list' ? 'active' : ''}" data-view="list" aria-pressed="${viewMode === 'list'}">Modo Lista</button>
-    </div><button class="btn btn-primary" id="btn-refresh-issues">Atualizar agora</button></div>`;
+      <button class="btn btn-secondary ${viewMode === 'kanban' ? 'active' : ''}" data-view="kanban" aria-pressed="${viewMode === 'kanban'}">Kanban</button>
+      <button class="btn btn-secondary ${viewMode === 'list' ? 'active' : ''}" data-view="list" aria-pressed="${viewMode === 'list'}">Lista</button>
+    </div><button class="btn btn-primary" id="btn-refresh-issues" aria-label="Atualizar issues agora">Atualizar</button></div>`;
   header.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
     viewMode = button.dataset.view;
     visibleCount = PAGE_SIZE;
@@ -125,7 +126,7 @@ async function refreshIssues() {
     if (!result) throw new Error('A atualizacao nao retornou dados.');
     renderIssueExplorer();
   } catch (error) { window.alert(`Erro ao atualizar: ${error.message}`); }
-  finally { button.disabled = false; button.textContent = 'Atualizar agora'; }
+  finally { button.disabled = false; button.textContent = 'Atualizar'; }
 }
 
 function renderIssueExplorer() {
@@ -136,10 +137,14 @@ function renderIssueExplorer() {
   const blockedCount = blockedCards.length;
   const overdueCount = baseCards.filter(isCardOverdue).length;
   const affectedProjects = new Set(blockedCards.map(card => card.projectId)).size;
-  content.innerHTML = `${filtersTemplate()}<div class="issue-kpis" aria-label="Resumo dos filtros">
-      <button class="issue-kpi danger ${currentFilters.showBlocked ? 'active' : ''}" id="filter-total-blocked"><span>Bloqueados</span><strong>${blockedCount}</strong><small>${affectedProjects} projeto(s)</small></button>
-      <button class="issue-kpi warning ${currentFilters.showOverdue ? 'active' : ''}" id="filter-total-overdue"><span>Atrasados</span><strong>${overdueCount}</strong><small>prazo vencido</small></button>
-      <div class="issue-kpi neutral"><span>Resultado atual</span><strong>${cards.length}</strong><small>issue(s) filtrada(s)</small></div></div>
+  content.innerHTML = `<section class="issue-control-panel" aria-label="Filtros e resumo das issues">
+      ${filtersTemplate()}
+      <div class="issue-summary-strip" aria-label="Resumo dos filtros">
+        <button class="issue-summary-item danger ${currentFilters.showBlocked ? 'active' : ''}" id="filter-total-blocked" title="${blockedCount} bloqueados em ${affectedProjects} projeto(s)"><span>Bloqueados</span><strong>${blockedCount}</strong></button>
+        <button class="issue-summary-item warning ${currentFilters.showOverdue ? 'active' : ''}" id="filter-total-overdue" title="${overdueCount} issues com prazo vencido"><span>Atrasados</span><strong>${overdueCount}</strong></button>
+        <div class="issue-summary-item neutral"><span>Resultado</span><strong>${cards.length}</strong></div>
+      </div>
+    </section>
     ${viewMode === 'kanban' ? kanbanTemplate(cards) : listTemplate(cards)}`;
   bindFilters();
   document.getElementById('filter-total-blocked')?.addEventListener('click', () => {
@@ -159,16 +164,23 @@ function renderIssueExplorer() {
 function filtersTemplate() {
   const projects = dataService.getProjects();
   const users = dataService.getUsers();
-  return `<div class="filter-bar issue-filter-bar">
-    <label><span class="filter-label">Projeto</span><select id="filter-issue-project"><option value="">Todos os Projetos</option>${projects.map(project => `<option value="${sanitize(project.key)}" ${currentFilters.projectId === project.key ? 'selected' : ''}>${sanitize(project.name)}</option>`).join('')}</select></label>
-    <label><span class="filter-label">Analista</span><select id="filter-issue-analyst"><option value="">Todos os Analistas</option>${users.map(user => `<option value="${sanitize(user.id)}" ${currentFilters.analystId === user.id ? 'selected' : ''}>${sanitize(user.displayName)}</option>`).join('')}</select></label>
-    <label><span class="filter-label">Status</span><select id="filter-issue-status"><option value="">Todos os Status</option>${dataService.getStatusOptions().map(status => `<option value="${sanitize(status)}" ${currentFilters.status === status ? 'selected' : ''}>${sanitize(status)}</option>`).join('')}</select></label>
-    <label><span class="filter-label">Prioridade</span><select id="filter-issue-priority"><option value="">Todas</option>${['highest','high','medium','low','lowest'].map(priority => `<option value="${priority}" ${currentFilters.priority === priority ? 'selected' : ''}>${sanitize(priorityLabel(priority))}</option>`).join('')}</select></label>
-    <label><span class="filter-label">Tipo</span><select id="filter-issue-type"><option value="">Todos</option>${['epic','story','task','bug','subtask'].map(type => `<option value="${type}" ${currentFilters.type === type ? 'selected' : ''}>${sanitize(typeLabel(type))}</option>`).join('')}</select></label>
-    <label><span class="filter-label">Data ate</span><input type="date" id="filter-issue-due" value="${sanitize(currentFilters.dueDate)}"></label>
-    <label class="issue-search"><span class="filter-label">Busca</span><input type="search" id="search-issues" placeholder="Chave, titulo, descricao, motivo ou responsavel..." value="${sanitize(currentFilters.search)}"></label></div>
-  <div class="filter-bar issue-quick-filters"><label><input type="checkbox" id="filter-issue-no-date" ${currentFilters.showNoDate ? 'checked' : ''}> Sem data</label>
-    <label><input type="checkbox" id="filter-issue-no-analyst" ${currentFilters.showNoAnalyst ? 'checked' : ''}> Sem analista</label><button class="btn btn-secondary btn-sm" id="clear-issue-filters">Limpar filtros</button></div>`;
+  const advancedCount = [currentFilters.priority, currentFilters.type, currentFilters.dueDate]
+    .filter(Boolean).length + Number(currentFilters.showNoDate) + Number(currentFilters.showNoAnalyst);
+  return `<div class="issue-primary-filters">
+    <label class="issue-search"><span class="issue-visually-hidden">Busca</span><input type="search" id="search-issues" aria-label="Buscar issues" placeholder="Buscar chave, título, descrição ou responsável..." value="${sanitize(currentFilters.search)}"></label>
+    <label><span class="issue-visually-hidden">Projeto</span><select id="filter-issue-project" aria-label="Filtrar por projeto"><option value="">Todos os projetos</option>${projects.map(project => `<option value="${sanitize(project.key)}" ${currentFilters.projectId === project.key ? 'selected' : ''}>${sanitize(project.name)}</option>`).join('')}</select></label>
+    <label><span class="issue-visually-hidden">Analista</span><select id="filter-issue-analyst" aria-label="Filtrar por analista"><option value="">Todos os analistas</option>${users.map(user => `<option value="${sanitize(user.id)}" ${currentFilters.analystId === user.id ? 'selected' : ''}>${sanitize(user.displayName)}</option>`).join('')}</select></label>
+    <label><span class="issue-visually-hidden">Status</span><select id="filter-issue-status" aria-label="Filtrar por status"><option value="">Todos os status</option>${dataService.getStatusOptions().map(status => `<option value="${sanitize(status)}" ${currentFilters.status === status ? 'selected' : ''}>${sanitize(status)}</option>`).join('')}</select></label>
+    <button class="btn btn-secondary btn-sm issue-more-filters ${filtersExpanded ? 'active' : ''}" id="toggle-issue-filters" aria-expanded="${filtersExpanded}" aria-controls="issue-advanced-filters">Mais filtros${advancedCount ? ` <span>${advancedCount}</span>` : ''}</button>
+  </div>
+  <div class="issue-advanced-filters ${filtersExpanded ? '' : 'is-collapsed'}" id="issue-advanced-filters">
+    <label><span>Prioridade</span><select id="filter-issue-priority"><option value="">Todas</option>${['highest','high','medium','low','lowest'].map(priority => `<option value="${priority}" ${currentFilters.priority === priority ? 'selected' : ''}>${sanitize(priorityLabel(priority))}</option>`).join('')}</select></label>
+    <label><span>Tipo</span><select id="filter-issue-type"><option value="">Todos</option>${['epic','story','task','bug','subtask'].map(type => `<option value="${type}" ${currentFilters.type === type ? 'selected' : ''}>${sanitize(typeLabel(type))}</option>`).join('')}</select></label>
+    <label><span>Data até</span><input type="date" id="filter-issue-due" value="${sanitize(currentFilters.dueDate)}"></label>
+    <label class="issue-check"><input type="checkbox" id="filter-issue-no-date" ${currentFilters.showNoDate ? 'checked' : ''}> Sem data</label>
+    <label class="issue-check"><input type="checkbox" id="filter-issue-no-analyst" ${currentFilters.showNoAnalyst ? 'checked' : ''}> Sem analista</label>
+    <button class="btn btn-secondary btn-sm" id="clear-issue-filters">Limpar</button>
+  </div>`;
 }
 
 function bindFilters() {
@@ -177,7 +189,8 @@ function bindFilters() {
   document.getElementById('filter-issue-no-date')?.addEventListener('change', event => { currentFilters.showNoDate = event.target.checked; renderIssueExplorer(); });
   document.getElementById('filter-issue-no-analyst')?.addEventListener('change', event => { currentFilters.showNoAnalyst = event.target.checked; renderIssueExplorer(); });
   document.getElementById('search-issues')?.addEventListener('input', debounce(event => { currentFilters.search = event.target.value; visibleCount = PAGE_SIZE; renderIssueExplorer(); }, 250));
-  document.getElementById('clear-issue-filters')?.addEventListener('click', () => { currentFilters = defaultFilters(); visibleCount = PAGE_SIZE; Object.keys(columnVisibleLimits).forEach(key => delete columnVisibleLimits[key]); renderIssueExplorer(); });
+  document.getElementById('toggle-issue-filters')?.addEventListener('click', () => { filtersExpanded = !filtersExpanded; renderIssueExplorer(); });
+  document.getElementById('clear-issue-filters')?.addEventListener('click', () => { currentFilters = defaultFilters(); filtersExpanded = false; visibleCount = PAGE_SIZE; Object.keys(columnVisibleLimits).forEach(key => delete columnVisibleLimits[key]); renderIssueExplorer(); });
 }
 
 function groupCards(cards) {
