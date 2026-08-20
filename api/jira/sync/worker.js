@@ -1,7 +1,7 @@
 /**
  * api/jira/sync/worker.js - Protected backend worker for scheduled auto-sync jobs.
  *
- * Configured in Vercel Cron to run every hour between 06:00 and 18:00 (Mon-Fri).
+ * Configured in Vercel Cron to run every 30 minutes between 06:00 and 18:00 (Mon-Fri).
  * Calls executeAutoSync to import Jira issues autonomously into Supabase.
  */
 import { executeAutoSync } from '../../../lib/syncJobService.js';
@@ -17,12 +17,12 @@ export default async function handler(req, res) {
 
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ success: false, error: 'Worker nao autorizado.' });
   }
 
   try {
-    const result = await executeAutoSync('vercel-cron', { forceScheduleCheck: false });
+    const result = await executeAutoSync('vercel-cron', { forceScheduleCheck: true });
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error('[sync-worker] Erro:', error.message);

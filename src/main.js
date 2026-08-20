@@ -23,6 +23,7 @@ const pageImports = {
   '/board': () => import('./pages/board.js'),
   '/executive': () => import('./pages/executive.js'),
   '/hours': () => import('./pages/hours.js'),
+  '/hours/docwise': () => import('./pages/hours.js'),
 };
 
 // Carregamento lazy de páginas
@@ -51,6 +52,7 @@ let authCache = {
   authenticated: false,
   checkedAt: 0
 };
+let authValidationPromise = null;
 
 function normalizePath(path) {
   return (path || '/').split('?')[0] || '/';
@@ -131,6 +133,7 @@ registerRoute('/data', () => renderRoute(() => import('./pages/data.js'), 'rende
 registerRoute('/executive', () => renderRoute(() => import('./pages/executive.js'), 'renderExecutive'));
 registerRoute('/executive/:projectKey', (params) => renderRoute(() => import('./pages/executive.js'), 'renderExecutive', params));
 registerRoute('/hours', () => renderRoute(() => import('./pages/hours.js'), 'renderHours', {}, { skipDataLoad: true }));
+registerRoute('/hours/docwise', () => renderRoute(() => import('./pages/hours.js'), 'renderHours', { projectKey: 'DOCW' }, { skipDataLoad: true }));
 registerRoute('/gantt', () => renderRoute(() => import('./pages/gantt.js'), 'renderGantt'));
 
 // Rotas de detalhe ( redireciona para board com filtro)
@@ -233,41 +236,37 @@ async function authGuard(path) {
     return true;
   }
 
-  try {
-    const response = await fetchWithTimeout('/api/auth', {
-      method: 'GET',
-      headers: { 'x-session-id': sessionId }
-    }, 5000);
-
-    if (!response.ok) {
-      // Erro HTTP - sessão inválida
-      clearSession();
-      window.location.hash = '#/login';
-      return false;
-    }
-
-    const data = await response.json();
-
-    if (data.authenticated) {
-      authCache = {
-        sessionId,
-        authenticated: true,
-        checkedAt: Date.now()
-      };
-      return true;
-    }
-
-    // Sessão inválida — limpar e redirecionar
-    clearSession();
-    window.location.hash = '#/login';
-    return false;
-  } catch (err) {
-    // Timeout ou erro de rede - permitir acesso
-    // Em produção, se o servidor não responde, permitimos acesso
-    // O sistema verificará auth novamente nas chamadas de API
-    console.warn('[Auth] Timeout ou erro, permitindo acesso:', err.message);
-    return true;
+  if (!authValidationPromise) {
+    authValidationPromise = (async () => {
+      try {
+        const response = await fetchWithTimeout('/api/auth', {
+          method: 'GET',
+          headers: { 'x-session-id': sessionId }
+        }, 5000);
+        const data = await response.json().catch(() => ({ authenticated: false }));
+        if (response.status === 401 || response.status === 403) {
+          clearSession();
+          return false;
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!data.authenticated) {
+          clearSession();
+          return false;
+        }
+        authCache = { sessionId, authenticated: true, checkedAt: Date.now() };
+        return true;
+      } catch (err) {
+        console.warn('[Auth] Validacao temporariamente indisponivel; mantendo sessao local:', err.message);
+        return true;
+      } finally {
+        authValidationPromise = null;
+      }
+    })();
   }
+
+  const authenticated = await authValidationPromise;
+  if (!authenticated) window.location.hash = '#/login';
+  return authenticated;
 }
 
 // ─── Layout do Sistema ──────────────────────────────────
@@ -310,57 +309,18 @@ async function initApp() {
 
   // Define o guard de autenticação
   setAuthGuard(authGuard);
-
-  // Inicializa o router
-  initRouter();
-
-  // Verifica autenticação inicial para renderizar sidebar
   const currentPath = normalizePath(window.location.hash.replace(/^#\/?/, '/') || '/');
-  
-  if (!publicRoutes.includes(currentPath)) {
-    const sessionId = getSessionId();
-    
-    if (sessionId) {
-      try {
-        const response = await fetchWithTimeout('/api/auth?check=1', {
-          method: 'GET',
-          headers: { 'x-session-id': sessionId }
-        }, 5000);
-        const data = await response.json().catch(() => ({ authenticated: false }));
-        
-        if (data.authenticated) {
-          authCache = {
-            sessionId,
-            authenticated: true,
-            checkedAt: Date.now()
-          };
-          updateLayout(true);
-          renderSidebar();
-        } else {
-          // Sessão inválida - tenta carregar dados
-          clearSession();
-          updateLayout(false);
-          window.location.hash = '#/login';
-        }
-      } catch (err) {
-        clearSession();
-        updateLayout(false);
-        window.location.hash = '#/login';
-      }
-    } else {
-      // Sem sessão - mostra layout completo (vai verificar credenciais via router)
-      updateLayout(true);
-      renderSidebar();
-    }
-  }
-  
-  // Se é rota pública e é login, mostra sem sidebar
-  if (currentPath === '/login') {
+  const hasSession = Boolean(getSessionId());
+
+  if (currentPath === '/login' || (!publicRoutes.includes(currentPath) && !hasSession)) {
     updateLayout(false);
-  } else if (publicRoutes.includes(currentPath)) {
+  } else {
     updateLayout(true);
     renderSidebar();
   }
+
+  // O guard faz a unica validacao remota, evitando corridas em reload/navegacao rapida.
+  initRouter();
 }
 
 // Aguardar DOM

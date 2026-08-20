@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildProjectHoursDashboard,
   buildCrawfordHoursDashboard,
   capacityStatus,
   competenceFromStarted,
@@ -49,6 +50,16 @@ test('dashboard agrupa por competencia e epic/aplicacao sem solicitante', () => 
 test('valida competencia da API', () => {
   assert.equal(validateCompetence('2026-08'), '2026-08');
   assert.throws(() => validateCompetence('08/2026'), /YYYY-MM/);
+});
+
+test('dashboard Docwise usa somente worklogs DOCW e identifica o cliente', () => {
+  const result = buildProjectHoursDashboard([
+    { worklog_id: 'docw-1', issue_key: 'DOCW-12', author_name: 'Pedro', started_at: '2026-08-20T14:00:00.000Z', time_spent_seconds: 28 * 3600 }
+  ], [{ issue_key: 'DOCW-12', title: 'Validar payload Docwise' }], '2026-08', 'DOCW');
+  assert.equal(result.projectKey, 'DOCW');
+  assert.equal(result.project.name, 'Docwise');
+  assert.equal(result.usedHours, 28);
+  assert.equal(result.entries[0].ticket, 'DOCW-12');
 });
 
 test('fallback consulta apenas worklogs Crawford e normaliza tickets do banco', async () => {

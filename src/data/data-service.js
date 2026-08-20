@@ -11,6 +11,17 @@ import {
 } from './models.js';
 import { buildProjectScheduleSummary } from './schedule-service.js';
 
+function jiraFieldText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(jiraFieldText).filter(Boolean).join(', ');
+  if (typeof value !== 'object') return '';
+  if (value.type === 'text') return String(value.text || '').trim();
+  if (Array.isArray(value.content)) return value.content.map(jiraFieldText).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  return jiraFieldText(value.value ?? value.displayName ?? value.name ?? value.label ?? value.child);
+}
+
 class DataService {
   constructor() {
     this._projects = [];
@@ -397,9 +408,9 @@ class DataService {
   /**
    * Carrega dados do Jira via API interna
    */
-  async loadJiraData() {
+  async loadJiraData({ force = false } = {}) {
     try {
-      const response = await this._fetchWithTimeout(`${this._apiBase}/dashboard`, {
+      const response = await this._fetchWithTimeout(`${this._apiBase}/dashboard${force ? '?force=1' : ''}`, {
         headers: this._getHeaders()
       }, 10000);
       
@@ -543,7 +554,7 @@ class DataService {
     if (!force && this._hasLoaded) return this._rawJiraData;
     if (this._loadPromise) return this._loadPromise;
 
-    this._loadPromise = this.loadJiraData();
+    this._loadPromise = this.loadJiraData({ force });
     return this._loadPromise;
   }
 
@@ -635,6 +646,12 @@ class DataService {
       const parentTitle = i.parent_title || null;
       const issueId     = i.issue_id;
       const issueKey    = i.issue_key;
+      const rawFields   = i.raw_fields || i.rawFields || {};
+      const blockReason = jiraFieldText(rawFields.customfield_11275) || 'Motivo não informado no Jira';
+      const blockedAt   = jiraFieldText(rawFields.customfield_10046)
+        || rawFields.statuscategorychangedate
+        || updatedAt
+        || createdAt;
       this._rawIssueById.set(issueId, i);
 
       const isInconsistent = !assigneeId || 
@@ -648,7 +665,7 @@ class DataService {
         key: issueKey,
         projectId: projectByKey.get(projectKey)?.id || projectKey,
         title: i.title || '',
-        description: '',
+        description: jiraFieldText(rawFields.description),
         assigneeId: assigneeId || 'unassigned',
         status: statusName,
         priority: this.mapPriority(priorityName),
@@ -662,7 +679,11 @@ class DataService {
         plannedEndDate,
         dateSource: plannedStartDate ? 'jira' : (plannedEndDate ? 'due_date_only' : 'missing'),
         jiraUrl: i.jira_url || i.jiraUrl || i.issue_url || i.self || null,
-        rawFields: i.raw_fields || i.rawFields || null,
+        rawFields,
+        blockReason,
+        blockedAt,
+        actionTaken: jiraFieldText(rawFields.customfield_11377) || 'Nenhuma ação registrada',
+        pendingWith: jiraFieldText(rawFields.customfield_11376) || 'Não informado',
         sprint: null,
         storyPoints,
         labels: i.labels || [],
@@ -909,8 +930,7 @@ class DataService {
 
   async refreshFromJira() {
     try {
-      await this.clearCache();
-      return await this.loadJiraData();
+      return await this.loadJiraData({ force: true });
     } catch (error) {
       console.error('[DataService] Erro ao fazer refresh:', error);
       return null;

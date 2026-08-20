@@ -91,7 +91,7 @@ app.use((err, req, res, next) => {
 });
 
 // Agendador de sincronização automática em background (para servidor Node/Standalone)
-// Executa a cada 1 hora entre 06:00 e 18:00 de segunda a sexta-feira (Horário de Brasília)
+// Executa a cada 30 minutos entre 06:00 e 18:00 de segunda a sexta-feira (Horário de Brasília)
 function initAutoSyncScheduler() {
   let lastRanKey = '';
 
@@ -117,13 +117,13 @@ function initAutoSyncScheduler() {
       const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '-1', 10);
 
       const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
-      const isHourRange = hour >= 6 && hour <= 18;
-      const currentKey = `${year}-${month}-${day}T${hour}`;
+      const isHalfHourSlot = minute === 0 || minute === 30;
+      const isHourRange = (hour >= 6 && hour < 18) || (hour === 18 && minute === 0);
+      const currentKey = `${year}-${month}-${day}T${hour}:${minute}`;
 
-      // Executa no início de cada hora (minuto 0) ou logo que detectar a nova hora dentro da janela
-      if (isWeekday && isHourRange && minute === 0 && lastRanKey !== currentKey) {
+      if (isWeekday && isHourRange && isHalfHourSlot && lastRanKey !== currentKey) {
         lastRanKey = currentKey;
-        console.log(`[AutoSync] Disparando sincronizacao automatica (${hour}:00 BRT - ${weekday})...`);
+        console.log(`[AutoSync] Disparando sincronizacao automatica (${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} BRT - ${weekday})...`);
         const { executeAutoSync } = await import('../lib/syncJobService.js');
         const result = await executeAutoSync('node-scheduler', { forceScheduleCheck: true });
         console.log('[AutoSync] Resultado da sincronizacao automatica:', result?.status || 'concluido');

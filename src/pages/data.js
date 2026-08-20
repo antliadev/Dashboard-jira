@@ -143,7 +143,7 @@ function renderDataContent() {
         </div>
         <div class="banner-content">
           <strong>Sincronização Automática Ativa</strong>
-          <p>Os dados são atualizados automaticamente <strong>a cada 1 hora</strong>, de <strong>segunda a sexta-feira</strong>, entre as <strong>06:00 e as 18:00</strong>.</p>
+          <p>Os dados são atualizados automaticamente <strong>a cada 30 minutos</strong>, de <strong>segunda a sexta-feira</strong>, das <strong>06:00 às 18:00</strong>.</p>
         </div>
       </div>
 

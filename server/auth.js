@@ -3,6 +3,8 @@
  * Login único compartilhado para 3 usuários
  */
 
+import { createSignedSession, verifySignedSession } from '../lib/authSession.js';
+
 // Credenciais do painel. Podem ser sobrescritas no .env local.
 const VALID_EMAIL = process.env.AUTH_EMAIL || 'admin@jira.com';
 const VALID_PASSWORD = process.env.AUTH_PASSWORD || 'admin123';
@@ -27,7 +29,7 @@ function validateCredentials(email, password) {
 /**
  * Cria uma nova sessão
  */
-function createSession(email) {
+function createLegacySession(email) {
   const sessionId = generateSessionId();
   const session = {
     id: sessionId,
@@ -40,10 +42,36 @@ function createSession(email) {
   return session;
 }
 
+function createSession(email) {
+  try {
+    const id = createSignedSession(email);
+    return {
+      id,
+      email,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+  } catch (error) {
+    if (process.env.NODE_ENV === 'production') throw error;
+    console.warn('[Auth] Sessao assinada indisponivel; usando memoria apenas no ambiente local.');
+    return createLegacySession(email);
+  }
+}
+
 /**
  * Valida uma sessão existente
  */
 function validateSession(sessionId) {
+  const signed = verifySignedSession(sessionId);
+  if (signed) {
+    return {
+      id: sessionId,
+      email: signed.email,
+      createdAt: new Date(signed.iat).toISOString(),
+      expiresAt: new Date(signed.exp).toISOString()
+    };
+  }
+
   const session = sessions.get(sessionId);
   
   if (!session) {
@@ -101,7 +129,13 @@ function handleLogin(req, res) {
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
   
-  const session = createSession(email);
+  let session;
+  try {
+    session = createSession(email);
+  } catch (error) {
+    console.error('[Auth] Falha ao criar sessao:', error.message);
+    return res.status(500).json({ error: 'Autenticacao indisponivel. Verifique a configuracao segura da sessao.' });
+  }
   
   res.json({
     success: true,

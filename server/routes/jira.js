@@ -25,7 +25,7 @@ import {
   upsertProjectMetadata,
 } from '../../lib/projectMetadataService.js';
 import { createSyncJob, createSyncJobFromEnv, getSyncJobStatus, runSyncJob, executeAutoSync } from '../../lib/syncJobService.js';
-import { fetchCrawfordHoursDashboard } from '../../lib/hoursDashboardService.js';
+import { fetchHoursDashboard } from '../../lib/hoursDashboardService.js';
 
 const router = express.Router();
 
@@ -319,12 +319,12 @@ router.post('/sync/start', async (req, res) => {
 router.all('/sync/worker', async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ success: false, error: 'Worker nao autorizado.' });
   }
 
   try {
-    const result = await executeAutoSync('api-worker', { forceScheduleCheck: false });
+    const result = await executeAutoSync('api-worker', { forceScheduleCheck: true });
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error('[sync-worker] Erro:', error.message);
@@ -338,7 +338,7 @@ router.all('/sync/worker', async (req, res) => {
 router.get('/dashboard', async (req, res) => {
   try {
     const latestJob = await getSyncJobStatus().catch(() => null);
-    const data = await fetchDashboardDataFromDatabase();
+    const data = await fetchDashboardDataFromDatabase({ force: req.query.force === 'true' || req.query.force === '1' });
     const total = data.totalIssues || 0;
 
     if (total === 0) {
@@ -371,14 +371,17 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Relatorio mensal de horas. O escopo e fixo em Crawford para impedir que um
-// parametro do cliente exponha dados de outros projetos.
+// Relatorio mensal de horas restrito a projetos explicitamente permitidos no
+// servico. O backend nunca aceita uma chave Jira arbitraria do cliente.
 router.get('/hours-dashboard', async (req, res) => {
   try {
-    const data = await fetchCrawfordHoursDashboard({ competence: req.query.competence });
+    const data = await fetchHoursDashboard({
+      projectKey: req.query.projectKey,
+      competence: req.query.competence
+    });
     return res.json(data);
   } catch (error) {
-    const status = /Competencia invalida/.test(error.message) ? 400 : 500;
+    const status = /(Competencia|Projeto de horas) invalido/.test(error.message) ? 400 : 500;
     console.error('[hours-dashboard] Erro:', error.message);
     return res.status(status).json({ error: error.message });
   }

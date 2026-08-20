@@ -401,7 +401,7 @@ input, select, textarea { font-family: inherit; }
   gap: 16px;
   overflow-x: auto;
   padding: 0 8px 24px 8px;
-  height: calc(100vh - 260px);
+  height: clamp(420px, calc(100vh - 410px), 760px);
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -488,6 +488,48 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* Explorador unificado de issues */
+.issue-view-actions, .issue-view-toggle, .issue-assignee { display: flex; align-items: center; gap: 8px; }
+.issue-view-toggle .active { background: var(--accent); border-color: var(--accent); color: white; }
+.issue-filter-bar { display: grid; grid-template-columns: repeat(6, minmax(140px, 1fr)); align-items: end; }
+.issue-filter-bar label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.issue-filter-bar select, .issue-filter-bar input { width: 100%; min-width: 0; }
+.issue-filter-bar .issue-search { grid-column: span 2; }
+.issue-quick-filters { padding-block: 10px; align-items: center; }
+.issue-quick-filters label { display: flex; align-items: center; gap: 6px; }
+.issue-kpis { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.issue-kpi { text-align: left; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; cursor: default; }
+button.issue-kpi { cursor: pointer; transition: border-color var(--transition), transform var(--transition); }
+button.issue-kpi:hover { transform: translateY(-1px); border-color: var(--accent); }
+.issue-kpi span, .issue-kpi small { color: var(--text-muted); }
+.issue-kpi strong { font-size: 24px; line-height: 1.2; }
+.issue-kpi.danger strong { color: var(--danger); }
+.issue-kpi.warning strong { color: var(--warning); }
+.issue-kpi.active { border-color: currentColor; box-shadow: 0 0 0 2px var(--accent-glow); }
+.issue-list-container { overflow: auto; }
+.issue-list-table { min-width: 1280px; }
+.issue-list-table th[data-sort] { cursor: pointer; }
+.issue-list-table td { vertical-align: top; }
+.issue-description { max-width: 420px; margin: 5px 0; color: var(--text-secondary); line-height: 1.4; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.issue-tag { display: inline-block; margin: 2px 5px 0 0; color: var(--text-muted); font-size: 11px; }
+.issue-block-reason { max-width: 260px; margin: 5px 0; color: var(--danger); white-space: normal; }
+.issue-block-action { display: block; max-width: 260px; margin-top: 4px; white-space: normal; color: var(--text-muted); }
+.issue-link, .kanban-card-key { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.issue-load-more { display: flex; justify-content: center; margin-top: 16px; }
+
+@media (max-width: 1200px) {
+  .issue-filter-bar { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+}
+@media (max-width: 720px) {
+  .issue-view-actions { align-items: stretch; flex-direction: column; }
+  .issue-filter-bar { grid-template-columns: 1fr; }
+  .issue-filter-bar .issue-search { grid-column: auto; }
+  .issue-kpis { grid-template-columns: 1fr; }
+  .kanban-container { height: calc(100vh - 560px); min-height: 390px; }
 }
 .kanban-column-content.drag-over {
   background: var(--accent-glow);

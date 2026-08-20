@@ -35,10 +35,10 @@ export function renderSidebar() {
       <button class="nav-item" data-route="/" onclick="location.hash='#/'" aria-label="Ir para Dashboard">${ICONS.dashboard}<span>Dashboard</span></button>
       <button class="nav-item" data-route="/executive" onclick="location.hash='#/executive'" aria-label="Ir para Resumo Executivo">${ICONS.executive}<span>Resumo Executivo</span></button>
       <button class="nav-item" data-route="/hours" onclick="location.hash='#/hours'" aria-label="Ir para Controle de Horas Crawford">${ICONS.hours}<span>Horas Crawford</span></button>
-      <button class="nav-item" data-route="/board" onclick="location.hash='#/board'" aria-label="Ir para Board Kanban">${ICONS.board}<span>Board Kanban</span></button>
+      <button class="nav-item" data-route="/hours/docwise" onclick="location.hash='#/hours/docwise'" aria-label="Ir para Controle de Horas Docwise">${ICONS.hours}<span>Horas Docwise</span></button>
+      <button class="nav-item" data-route="/board" onclick="location.hash='#/board'" aria-label="Ir para Issues em Kanban ou Lista">${ICONS.board}<span>Issues · Kanban / Lista</span></button>
       <button class="nav-item" data-route="/gantt" onclick="location.hash='#/gantt'" aria-label="Ir para Gantt">${ICONS.gantt}<span>Gantt</span></button>
       <button class="nav-item" data-route="/projects" onclick="location.hash='#/projects'" aria-label="Ir para Projetos">${ICONS.projects}<span>Projetos</span></button>
-      <button class="nav-item" data-route="/cards" onclick="location.hash='#/cards'" aria-label="Ir para Cards">${ICONS.cards}<span>Cards / Issues</span></button>
       <button class="nav-item" data-route="/analysts" onclick="location.hash='#/analysts'" aria-label="Ir para Analistas">${ICONS.analysts}<span>Analistas</span></button>
       <div class="nav-section" role="heading" aria-level="2">Configuração</div>
       <button class="nav-item" data-route="/data" onclick="location.hash='#/data'" aria-label="Ir para Dados">${ICONS.data}<span>Dados</span></button>

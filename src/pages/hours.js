@@ -2,9 +2,13 @@ import '../styles/hours.css';
 import { dataService } from '../data/data-service.js';
 import { sanitize } from '../utils/helpers.js';
 
-const PROJECT_KEY = 'CRAWFORD';
+const HOURS_PROJECTS = {
+  CRAWFORD: { key: 'CRAWFORD', name: 'Crawford', logo: '/crawford-logo.png' },
+  DOCW: { key: 'DOCW', name: 'Docwise', logo: '/docwise-logo.png' }
+};
 const TIME_ZONE = 'America/Sao_Paulo';
 let currentReport = null;
+let currentProject = HOURS_PROJECTS.CRAWFORD;
 let hoursBreakdownMode = 'card';
 
 function currentCompetence() {
@@ -58,13 +62,13 @@ function alertInfo(level, utilization) {
   return { css: 'healthy', label: 'Dentro da meta' };
 }
 
-function reportModel(payload, competence) {
+function reportModel(payload, competence, projectKey) {
   const usedHours = number(payload.usedHours);
   const allowanceHours = number(payload.allowanceHours || 100);
   const utilizationPercent = number(payload.utilizationPercent ?? (allowanceHours ? usedHours / allowanceHours * 100 : 0));
   return {
     ...payload,
-    projectKey: payload.projectKey || PROJECT_KEY,
+    projectKey: payload.projectKey || projectKey,
     competence: normalizeCompetence(payload.competence || competence),
     usedHours,
     allowanceHours,
@@ -93,7 +97,7 @@ function renderError(error, competence) {
         <button class="btn btn-primary" id="hours-retry">Tentar novamente</button>
       </div>
     </section>`;
-  document.getElementById('hours-retry')?.addEventListener('click', () => loadReport(competence));
+  document.getElementById('hours-retry')?.addEventListener('click', () => loadReport(currentProject.key, competence));
 }
 
 function applicationBars(items) {
@@ -152,7 +156,7 @@ function entriesTable(entries) {
   if (!entries.length) {
     return `<div class="hours-state hours-empty">
       <h3>Nenhum apontamento em ${sanitize(competenceLabel(currentReport.competence))}</h3>
-      <p>Registre worklogs nos cards Crawford para que o consumo seja calculado automaticamente.</p>
+      <p>Registre worklogs nos cards ${sanitize(currentProject.name)} para que o consumo seja calculado automaticamente.</p>
     </div>`;
   }
   return `<div class="hours-table-wrap"><table class="hours-table">
@@ -177,9 +181,9 @@ function renderReport(report) {
     <section class="hours-page">
       <div class="hours-toolbar">
         <div class="hours-report-intro">
-          <div class="hours-client-brand" aria-label="Cliente Crawford">
+          <div class="hours-client-brand" aria-label="Cliente ${sanitize(currentProject.name)}">
             <span>Cliente</span>
-            <div class="hours-client-logo"><img src="/crawford-logo.png" alt="Crawford"></div>
+            <div class="hours-client-logo"><img src="${sanitize(currentProject.logo)}" alt="${sanitize(currentProject.name)}"></div>
           </div>
           <div>
             <span class="hours-eyebrow">Controle executivo · ${sanitize(report.projectKey)}</span>
@@ -222,7 +226,7 @@ function renderReport(report) {
       </article>
     </section>`;
 
-  document.getElementById('hours-competence')?.addEventListener('change', event => loadReport(event.target.value));
+  document.getElementById('hours-competence')?.addEventListener('change', event => loadReport(currentProject.key, event.target.value));
   document.getElementById('hours-export')?.addEventListener('click', exportWorkbook);
   document.querySelectorAll('[data-hours-breakdown]').forEach(button => button.addEventListener('click', () => {
     hoursBreakdownMode = button.dataset.hoursBreakdown;
@@ -305,21 +309,24 @@ async function exportWorkbook() {
   }
 }
 
-async function loadReport(competence) {
+async function loadReport(projectKey, competence) {
   const normalized = normalizeCompetence(competence);
   renderLoading(normalized);
   try {
-    const payload = await dataService.loadHoursDashboard(PROJECT_KEY, normalized);
-    renderReport(reportModel(payload, normalized));
+    const payload = await dataService.loadHoursDashboard(projectKey, normalized);
+    renderReport(reportModel(payload, normalized, projectKey));
   } catch (error) {
     renderError(error, normalized);
   }
 }
 
-export function renderHours() {
+export function renderHours(options = {}) {
+  const requestedKey = String(options.projectKey || 'CRAWFORD').toUpperCase();
+  currentProject = HOURS_PROJECTS[requestedKey] || HOURS_PROJECTS.CRAWFORD;
+  hoursBreakdownMode = 'card';
   const header = document.getElementById('page-header');
-  if (header) header.innerHTML = '<div><h2>Controle de Horas</h2><div class="subtitle">Crawford · dados automáticos do Jira</div></div>';
+  if (header) header.innerHTML = `<div><h2>Controle de Horas</h2><div class="subtitle">${sanitize(currentProject.name)} · dados automáticos do Jira</div></div>`;
   const hashQuery = window.location.hash.split('?')[1] || '';
   const competence = normalizeCompetence(new URLSearchParams(hashQuery).get('competence'));
-  loadReport(competence);
+  loadReport(currentProject.key, competence);
 }
