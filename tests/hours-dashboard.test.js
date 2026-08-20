@@ -58,8 +58,34 @@ test('dashboard Docwise usa somente worklogs DOCW e identifica o cliente', () =>
   ], [{ issue_key: 'DOCW-12', title: 'Validar payload Docwise' }], '2026-08', 'DOCW');
   assert.equal(result.projectKey, 'DOCW');
   assert.equal(result.project.name, 'Docwise');
+  assert.equal(result.billingMode, 'cumulative');
+  assert.equal(result.allowanceHours, 1440);
   assert.equal(result.usedHours, 28);
   assert.equal(result.entries[0].ticket, 'DOCW-12');
+});
+
+test('Docwise acumula consumo entre competencias e Crawford reinicia mensalmente', () => {
+  const issues = [
+    { issue_key: 'DOCW-10', title: 'Docwise' },
+    { issue_key: 'CRAWFORD-10', title: 'Crawford' }
+  ];
+  const docwiseWorklogs = [
+    { worklog_id: 'd1', issue_key: 'DOCW-10', started_at: '2026-07-10T12:00:00.000Z', time_spent_seconds: 10 * 3600 },
+    { worklog_id: 'd2', issue_key: 'DOCW-10', started_at: '2026-08-10T12:00:00.000Z', time_spent_seconds: 5 * 3600 }
+  ];
+  const crawfordWorklogs = docwiseWorklogs.map((row, index) => ({ ...row, worklog_id: `c${index}`, issue_key: 'CRAWFORD-10' }));
+
+  const docwiseAugust = buildProjectHoursDashboard(docwiseWorklogs, issues, '2026-08', 'DOCW');
+  const docwiseJuly = buildProjectHoursDashboard(docwiseWorklogs, issues, '2026-07', 'DOCW');
+  const crawfordAugust = buildProjectHoursDashboard(crawfordWorklogs, issues, '2026-08', 'CRAWFORD');
+
+  assert.equal(docwiseAugust.usedHours, 15);
+  assert.equal(docwiseAugust.periodUsedHours, 5);
+  assert.equal(docwiseAugust.availableHours, 1425);
+  assert.equal(docwiseJuly.usedHours, 10);
+  assert.equal(crawfordAugust.billingMode, 'monthly');
+  assert.equal(crawfordAugust.usedHours, 5);
+  assert.equal(crawfordAugust.availableHours, 95);
 });
 
 test('fallback consulta apenas worklogs Crawford e normaliza tickets do banco', async () => {

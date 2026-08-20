@@ -71,6 +71,8 @@ function reportModel(payload, competence, projectKey) {
     projectKey: payload.projectKey || projectKey,
     competence: normalizeCompetence(payload.competence || competence),
     usedHours,
+    billingMode: payload.billingMode === 'cumulative' ? 'cumulative' : 'monthly',
+    periodUsedHours: number(payload.periodUsedHours ?? usedHours),
     allowanceHours,
     availableHours: Math.max(0, number(payload.availableHours ?? allowanceHours - usedHours)),
     overageHours: Math.max(0, number(payload.overageHours ?? usedHours - allowanceHours)),
@@ -175,6 +177,7 @@ function entriesTable(entries) {
 
 function renderReport(report) {
   currentReport = report;
+  const isCumulative = report.billingMode === 'cumulative';
   const alert = alertInfo(report.alertLevel, report.utilizationPercent);
   const content = document.getElementById('page-content');
   content.innerHTML = `
@@ -188,7 +191,7 @@ function renderReport(report) {
           <div>
             <span class="hours-eyebrow">Controle executivo · ${sanitize(report.projectKey)}</span>
             <h1>Relatório de Horas ${sanitize(competenceLabel(report.competence))}</h1>
-            <p>Consumo calculado pelos worklogs do Jira na competência selecionada.</p>
+            <p>${isCumulative ? 'Saldo contratual acumulado e consumo calculado pelos worklogs até a competência selecionada.' : 'Consumo calculado pelos worklogs do Jira na competência selecionada.'}</p>
           </div>
         </div>
         <div class="hours-actions">
@@ -200,8 +203,8 @@ function renderReport(report) {
       </div>
 
       <div class="hours-kpis">
-        <article class="hours-kpi used"><span>Horas utilizadas</span><strong>${sanitize(formatHours(report.usedHours))}</strong><small>de ${sanitize(formatHours(report.allowanceHours))}</small></article>
-        <article class="hours-kpi available"><span>Horas disponíveis</span><strong>${sanitize(formatHours(report.availableHours))}</strong><small>renovação mensal, sem acúmulo</small></article>
+        <article class="hours-kpi used"><span>${isCumulative ? 'Horas utilizadas acumuladas' : 'Horas utilizadas'}</span><strong>${sanitize(formatHours(report.usedHours))}</strong><small>${isCumulative ? `${formatHours(report.periodUsedHours)} nesta competência · ` : ''}de ${sanitize(formatHours(report.allowanceHours))}</small></article>
+        <article class="hours-kpi available"><span>Horas disponíveis</span><strong>${sanitize(formatHours(report.availableHours))}</strong><small>${isCumulative ? 'saldo acumulado do contrato, sem reset mensal' : 'renovação mensal, sem acúmulo'}</small></article>
         <article class="hours-kpi utilization ${alert.css}"><span>Consumo</span><strong>${sanitize(report.utilizationPercent.toLocaleString('pt-BR', { maximumFractionDigits: 1 }))}%</strong><small>${sanitize(alert.label)}</small></article>
         <article class="hours-kpi overage ${report.overageHours > 0 ? 'visible' : ''}"><span>Horas excedentes</span><strong>${sanitize(formatHours(report.overageHours))}</strong><small>${report.overageHours > 0 ? 'acima do limite contratado' : 'sem excedente no período'}</small></article>
       </div>
@@ -221,7 +224,7 @@ function renderReport(report) {
       </div>
 
       <article class="hours-panel hours-detail-panel">
-        <div class="hours-panel-heading"><h2>Detalhamento dos apontamentos</h2><span>${report.entries.length} registro${report.entries.length === 1 ? '' : 's'}</span></div>
+        <div class="hours-panel-heading"><h2>Detalhamento dos apontamentos</h2><span>${report.entries.length} registro${report.entries.length === 1 ? '' : 's'} nesta competência</span></div>
         ${entriesTable(report.entries)}
       </article>
     </section>`;
@@ -276,19 +279,20 @@ async function exportWorkbook() {
     styleWorksheet(description, [14, 16, 28, 58, 24, 12, 14]);
 
     const consumption = workbook.addWorksheet('Consumo');
-    consumption.addRow(['MES/ANO', 'HORAS UTILIZADAS', 'CONSUMO (%)']);
+    consumption.addRow(['MES/ANO', 'HORAS DA COMPETÊNCIA', 'HORAS CONTABILIZADAS', 'CONSUMO (%)']);
     currentReport.monthlyHistory.forEach(item => consumption.addRow([
-      excelSafe(item.competence), number(item.usedHours), currentReport.allowanceHours ? number(item.usedHours) / currentReport.allowanceHours : 0
+      excelSafe(item.competence), number(item.usedHours), number(item.accountableUsedHours ?? item.usedHours), number(item.consumptionPercentage) / 100
     ]));
     consumption.getColumn(2).numFmt = '0.00';
-    consumption.getColumn(3).numFmt = '0.00%';
-    styleWorksheet(consumption, [16, 22, 18]);
+    consumption.getColumn(3).numFmt = '0.00';
+    consumption.getColumn(4).numFmt = '0.00%';
+    styleWorksheet(consumption, [16, 24, 24, 18]);
 
     const hours = workbook.addWorksheet('Horas');
-    hours.addRow(['PROJETO', 'MES/ANO', 'HORAS CONTRATADAS', 'HORAS UTILIZADAS', 'HORAS DISPONÍVEIS', 'HORAS EXCEDENTES']);
-    hours.addRow([excelSafe(currentReport.projectKey), excelSafe(currentReport.competence), currentReport.allowanceHours, currentReport.usedHours, currentReport.availableHours, currentReport.overageHours]);
-    [3, 4, 5, 6].forEach(index => { hours.getColumn(index).numFmt = '0.00'; });
-    styleWorksheet(hours, [18, 16, 22, 20, 22, 20]);
+    hours.addRow(['PROJETO', 'MES/ANO', 'MODELO', 'HORAS CONTRATADAS', 'HORAS UTILIZADAS', 'HORAS DA COMPETÊNCIA', 'HORAS DISPONÍVEIS', 'HORAS EXCEDENTES']);
+    hours.addRow([excelSafe(currentReport.projectKey), excelSafe(currentReport.competence), currentReport.billingMode === 'cumulative' ? 'ACUMULADO' : 'MENSAL', currentReport.allowanceHours, currentReport.usedHours, currentReport.periodUsedHours, currentReport.availableHours, currentReport.overageHours]);
+    [4, 5, 6, 7, 8].forEach(index => { hours.getColumn(index).numFmt = '0.00'; });
+    styleWorksheet(hours, [18, 16, 16, 22, 20, 22, 22, 20]);
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
