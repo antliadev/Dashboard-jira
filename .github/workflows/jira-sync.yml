@@ -2,8 +2,10 @@ name: Sincronização Automática Jira
 
 on:
   schedule:
-    # A cada 1 hora entre 09:00 e 21:00 UTC (06:00 às 18:00 BRT), de segunda a sexta-feira
-    - cron: '0 9-21 * * 1-5'
+    # A cada 30 min entre 09:00 e 20:30 UTC (06:00 às 17:30 BRT), em dias úteis.
+    - cron: '*/30 9-20 * * 1-5'
+    # Última execução diária: 21:00 UTC (18:00 BRT).
+    - cron: '0 21 * * 1-5'
   workflow_dispatch: # Permite disparar manualmente pela aba Actions do GitHub
 
 jobs:
